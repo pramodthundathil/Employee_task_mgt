@@ -1,0 +1,238 @@
+{% extends 'base.html' %}
+
+{% block title %}Great waters EMS -Admin Dashboard {% endblock %}
+
+{% block breadcrumb %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item active">Dashboard</li>
+        </ol>
+    </nav>
+    {% endblock %}
+
+    {% block content %}
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="fas fa-tachometer-alt me-2"></i>Admin Dashboard
+            </h1>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-number">{{ total_employees }}</div>
+                <div class="stats-label">
+                    <i class="fas fa-users me-2"></i>Active Employees
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-number">{{ total_projects }}</div>
+                <div class="stats-label">
+                    <i class="fas fa-project-diagram me-2"></i>Active Projects
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-number">{{ total_tasks }}</div>
+                <div class="stats-label">
+                    <i class="fas fa-tasks me-2"></i>Total Tasks
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card">
+                <div class="stats-number">{{ recent_entries|length }}</div>
+                <div class="stats-label">
+                    <i class="fas fa-clock me-2"></i>Recent Entries
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-bolt me-2"></i>Quick Actions
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'add_employee' %}" class="btn btn-primary w-100">
+                                <i class="fas fa-user-plus me-2"></i>Add Employee
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'add_project' %}" class="btn btn-primary w-100">
+                                <i class="fas fa-plus-circle me-2"></i>Create Project
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'reports' %}" class="btn btn-primary w-100">
+                                <i class="fas fa-chart-bar me-2"></i>Generate Reports
+                            </a>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <a href="{% url 'work_entry_management' %}" class="btn btn-primary w-100">
+                                <i class="fas fa-clipboard-list me-2"></i>Manage Work Entries
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Recent Work Entries -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-clock me-2"></i>Recent Work Entries
+                </div>
+                <div class="card-body">
+                    {% if recent_entries %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Project</th>
+                                    <th>Date</th>
+                                    <th>Hours</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in recent_entries %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div
+                                                class="avatar-sm bg-primary rounded-circle d-flex align-items-center justify-content-center text-white me-2">
+                                                {{ entry.employee.first_name|first }}{{ entry.employee.last_name|first
+                                                }}
+                                            </div>
+                                            <div>
+                                                <div class="fw-bold">{{ entry.employee.first_name }} {{
+                                                    entry.employee.last_name }}</div>
+                                                <small class="text-muted">{{ entry.employee.employee_id }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ entry.project.name }}</span>
+                                    </td>
+                                    <td>{{ entry.work_date|date:"M d, Y" }}</td>
+                                    <td>
+                                        <strong>{{ entry.working_hours }} hrs</strong>
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'edit_work_entry' entry.id %}"
+                                            class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="{% url 'work_entry_management' %}" class="btn btn-outline-primary">
+                            View All Work Entries
+                        </a>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No recent work entries found.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Projects -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-project-diagram me-2"></i>Active Projects
+                </div>
+                <div class="card-body">
+                    {% if active_projects %}
+                    <div class="list-group list-group-flush">
+                        {% for project in active_projects %}
+                        <div class="list-group-item border-0 px-0">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">{{ project.name }}</h6>
+                                    <small class="text-muted">
+                                        Started: {{ project.start_date|date:"M d, Y" }}
+                                    </small>
+                                </div>
+                                <span class="badge bg-success">Active</span>
+                            </div>
+                            {% if project.description %}
+                            <p class="mb-1 text-muted small">{{ project.description|truncatewords:10 }}</p>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="{% url 'project_management' %}" class="btn btn-outline-primary">
+                            View All Projects
+                        </a>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-project-diagram fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No active projects found.</p>
+                        <a href="{% url 'add_project' %}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Create Project
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .avatar-sm {
+        width: 40px;
+        height: 40px;
+        font-size: 14px;
+        font-weight: bold;
+    }
+
+    .stats-card {
+        background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+        color: white;
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+
+    .stats-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+
+    .stats-label {
+        font-size: 1.1rem;
+        opacity: 0.9;
+    }
+</style>
+{% endblock %}

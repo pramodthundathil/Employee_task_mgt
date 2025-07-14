@@ -1,0 +1,638 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}GREAT Waters - Employee Management{% endblock %}
+
+{% block breadcrumb %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'admin_dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item active">Employee Management</li>
+        </ol>
+    </nav>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Alert container for messages -->
+    <div id="alert-container"></div>
+    
+    <div class="row">
+        <div class="col-12">
+            <div class="card modern-card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="card-title mb-0">Employee Management</h3>
+                        <button type="button" class="btn btn-primary modern-btn" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+                            <i class="fas fa-plus me-2"></i>Add Employee
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table id="employeeTable" class="table table-striped modern-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Profile</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Designation</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Date Joined</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for employee in employees %}
+                                <tr>
+                                    <td>{{ employee.id }}</td>
+                                    <td>
+                                        {% if employee.profile_picture %}
+                                            <img src="{{ employee.profile_picture.url }}" alt="Profile" class="profile-img">
+                                        {% else %}
+                                            <div class="profile-placeholder">
+                                                <i class="fas fa-user"></i>
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ employee.first_name }} {{ employee.last_name|default:'' }}</td>
+                                    <td>{{ employee.email }}</td>
+                                    <td>{{ employee.phone_number|default:'-' }}</td>
+                                    <td>{{ employee.designation|default:'-' }}</td>
+                                    <td>
+                                        <span class="badge {% if employee.role == 'admin' %}badge-danger{% else %}badge-primary{% endif %}">
+                                            {{ employee.role|capfirst }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if employee.is_active %}
+                                            <span class="badge badge-success">Active</span>
+                                        {% else %}
+                                            <span class="badge badge-secondary">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ employee.date_joined|date:"M d, Y" }}</td>
+                                    <td>
+                                        <div class="btn-group action-buttons" role="group">
+                                            <button type="button" class="btn btn-sm btn-info" onclick="viewEmployee({{ employee.id }})" title="View Details">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-warning" onclick="editEmployee({{ employee.id }})" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleStatus({{ employee.id }})" title="Toggle Status">
+                                                <i class="fas fa-toggle-on"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-danger" onclick="deleteEmployee({{ employee.id }})" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="10" class="text-center">No employees found.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Employee Modal -->
+<div class="modal fade" id="addEmployeeModal" tabindex="-1" aria-labelledby="addEmployeeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content modern-modal">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addEmployeeModalLabel">Add New Employee</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'add_employee' %}" enctype="multipart/form-data" id="addEmployeeForm">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row">
+                        {% for field in form %}
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                            {{ field }}
+                            <div class="field-errors"></div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Employee</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Employee Modal -->
+<div class="modal fade" id="editEmployeeModal" tabindex="-1" aria-labelledby="editEmployeeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content modern-modal">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editEmployeeModalLabel">Edit Employee</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editEmployeeContent">
+                <!-- Employee edit form will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Employee Modal -->
+<div class="modal fade" id="viewEmployeeModal" tabindex="-1" aria-labelledby="viewEmployeeModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content modern-modal">
+            <div class="modal-header">
+                <h5 class="modal-title" id="viewEmployeeModalLabel">Employee Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="viewEmployeeContent">
+                <!-- Employee details will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+:root {
+    --primary-color: #176d9d;
+    --secondary-color: #2d2b27;
+    --accent-color: #4c94b4;
+    --success-color: #10b981;
+    --warning-color: #f59e0b;
+    --danger-color: #ef4444;
+    --info-color: #06b6d4;
+    --light-bg: #f8fafc;
+    --dark-text: #1f2937;
+    --border-color: #e5e7eb;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    --border-radius: 12px;
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modern-card {
+    border: none;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.modern-card .card-header {
+    background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+    color: white;
+    border: none;
+    padding: 1.5rem;
+}
+
+.modern-card .card-title {
+    font-weight: 600;
+    font-size: 1.25rem;
+}
+
+.modern-btn {
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    font-weight: 500;
+    transition: var(--transition);
+    border: none;
+}
+
+.modern-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+}
+
+.modern-table {
+    border: none;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.modern-table thead th {
+    background: var(--light-bg);
+    border: none;
+    font-weight: 600;
+    color: var(--dark-text);
+    padding: 1rem 0.75rem;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+    letter-spacing: 0.05em;
+}
+
+.modern-table tbody td {
+    border: none;
+    padding: 1rem 0.75rem;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modern-table tbody tr:hover {
+    background-color: rgba(23, 109, 157, 0.05);
+}
+
+.profile-img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--border-color);
+}
+
+.profile-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--secondary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1rem;
+}
+
+.badge {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border-radius: 20px;
+    border: none;
+}
+
+.badge-primary {
+    background: var(--primary-color);
+    color: white;
+}
+
+.badge-success {
+    background: var(--success-color);
+    color: white;
+}
+
+.badge-danger {
+    background: var(--danger-color);
+    color: white;
+}
+
+.badge-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.action-buttons .btn {
+    border-radius: 6px;
+    margin-right: 0.25rem;
+    padding: 0.375rem 0.5rem;
+    border: none;
+    transition: var(--transition);
+}
+
+.action-buttons .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow);
+}
+
+.btn-info {
+    background: var(--info-color);
+    color: white;
+}
+
+.btn-warning {
+    background: var(--warning-color);
+    color: white;
+}
+
+.btn-danger {
+    background: var(--danger-color);
+    color: white;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.modern-modal .modal-content {
+    border: none;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-lg);
+}
+
+.modern-modal .modal-header {
+    background: var(--light-bg);
+    border: none;
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+
+.form-control {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.75rem;
+    transition: var(--transition);
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(23, 109, 157, 0.25);
+}
+
+.alert {
+    border-radius: 8px;
+    border: none;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+.alert-success {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success-color);
+}
+
+.alert-danger {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger-color);
+}
+
+.field-errors {
+    color: var(--danger-color);
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+/* DataTables customization */
+.dataTables_wrapper .dataTables_filter input {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.5rem;
+    margin-left: 0.5rem;
+}
+
+.dataTables_wrapper .dataTables_length select {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.5rem;
+    margin: 0 0.5rem;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button {
+    border-radius: 6px;
+    margin: 0 0.125rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+    background: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    color: white !important;
+}
+
+.dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+    background: var(--light-bg) !important;
+    border-color: var(--primary-color) !important;
+    color: var(--primary-color) !important;
+}
+</style>
+
+<script>
+let employeeTable;
+
+$(document).ready(function() {
+    // Initialize DataTable
+    employeeTable = $('#employeeTable').DataTable({
+        responsive: true,
+        pageLength: 10,
+        lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+        order: [[0, 'desc']],
+        columnDefs: [
+            { orderable: false, targets: [1, 9] },
+            { className: "text-center", targets: [0, 1, 6, 7, 9] },
+            { width: "60px", targets: [1] },
+            { width: "150px", targets: [9] }
+        ],
+        language: {
+            search: "Search employees:",
+            lengthMenu: "Show _MENU_ entries",
+            info: "Showing _START_ to _END_ of _TOTAL_ employees",
+            emptyTable: "No employees found",
+            zeroRecords: "No matching employees found"
+        }
+    });
+
+    // Handle add employee form submission
+    $('#addEmployeeForm').on('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        clearErrors();
+        
+        $.ajax({
+            url: $(this).attr('action'),
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.success) {
+                    $('#addEmployeeModal').modal('hide');
+                    showAlert('Employee added successfully!', 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showFormErrors(response.errors, '#addEmployeeForm');
+                }
+            },
+            error: function(xhr) {
+                console.error('Error adding employee:', xhr);
+                showAlert('Error adding employee. Please try again.', 'danger');
+            }
+        });
+    });
+
+    // Clear form when modal is closed
+    $('#addEmployeeModal').on('hidden.bs.modal', function() {
+        $('#addEmployeeForm')[0].reset();
+        clearErrors();
+    });
+
+    $('#editEmployeeModal').on('hidden.bs.modal', function() {
+        $('#editEmployeeContent').html('');
+    });
+});
+
+function showAlert(message, type) {
+    const alertDiv = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    $('#alert-container').html(alertDiv);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        $('.alert').alert('close');
+    }, 5000);
+}
+
+function clearErrors() {
+    $('.field-errors').html('');
+    $('.form-control').removeClass('is-invalid');
+}
+
+function showFormErrors(errors, formSelector) {
+    clearErrors();
+    
+    for (const field in errors) {
+        const fieldElement = $(formSelector).find(`[name="${field}"]`);
+        if (fieldElement.length) {
+            fieldElement.addClass('is-invalid');
+            fieldElement.closest('.mb-3').find('.field-errors').html(errors[field].join('<br>'));
+        }
+    }
+}
+
+function viewEmployee(employeeId) {
+    $.ajax({
+        url: `/employee/${employeeId}/`,
+        type: 'GET',
+        success: function(response) {
+            if (response.details_html) {
+                $('#viewEmployeeContent').html(response.details_html);
+            } else {
+                $('#viewEmployeeContent').html(response);
+            }
+            $('#viewEmployeeModal').modal('show');
+        },
+        error: function(xhr) {
+            console.error('Error loading employee details:', xhr);
+            showAlert('Error loading employee details. Please try again.', 'danger');
+        }
+    });
+}
+
+function editEmployee(employeeId) {
+    $.ajax({
+        url: `/employee/${employeeId}/edit/`,
+        type: 'GET',
+        success: function(response) {
+            if (response.form_html) {
+                $('#editEmployeeContent').html(response.form_html);
+            } else {
+                $('#editEmployeeContent').html(response);
+            }
+            $('#editEmployeeModal').modal('show');
+            
+            // Bind form submission for edit
+            $('#editEmployeeForm').off('submit').on('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                clearErrors();
+                
+                $.ajax({
+                    url: `/employee/${employeeId}/edit/`,
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        if (response.success) {
+                            $('#editEmployeeModal').modal('hide');
+                            showAlert('Employee updated successfully!', 'success');
+                            setTimeout(() => {
+                                location.reload();
+                            }, 1500);
+                        } else {
+                            showFormErrors(response.errors, '#editEmployeeForm');
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error('Error updating employee:', xhr);
+                        showAlert('Error updating employee. Please try again.', 'danger');
+                    }
+                });
+            });
+        },
+        error: function(xhr) {
+            console.error('Error loading employee edit form:', xhr);
+            showAlert('Error loading employee edit form. Please try again.', 'danger');
+        }
+    });
+}
+
+function toggleStatus(employeeId) {
+    if (confirm('Are you sure you want to toggle the status of this employee?')) {
+        $.ajax({
+            url: `/employee/${employeeId}/toggle-status/`,
+            type: 'POST',
+            data: {
+                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                if (response.success) {
+                    showAlert(response.message, 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showAlert('Error: ' + response.message, 'danger');
+                }
+            },
+            error: function(xhr) {
+                console.error('Error toggling employee status:', xhr);
+                showAlert('Error toggling employee status. Please try again.', 'danger');
+            }
+        });
+    }
+}
+
+function deleteEmployee(employeeId) {
+    if (confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
+        $.ajax({
+            url: `/employee/${employeeId}/delete/`,
+            type: 'POST',
+            data: {
+                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+            },
+            success: function(response) {
+                if (response.success) {
+                    showAlert(response.message, 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showAlert('Error: ' + response.message, 'danger');
+                }
+            },
+            error: function(xhr) {
+                console.error('Error deleting employee:', xhr);
+                showAlert('Error deleting employee. Please try again.', 'danger');
+            }
+        });
+    }
+}
+</script>
+
+<!-- DataTables CSS and JS -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+{% endblock %}

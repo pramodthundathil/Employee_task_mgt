@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}GREAT Waters - Work Entries{% endblock %}
+
+{% block breadcrumb %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'employee_dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item active">My Work entries</li>
+        </ol>
+    </nav>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Alert container for messages -->
+    <div id="alert-container"></div>
+
+
+</div>
+{% endblock %}

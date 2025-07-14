@@ -1,0 +1,733 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ project.name }} - Project Details{% endblock %}
+
+{% block breadcrumb %}
+<div class="container-fluid">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'admin_dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'project_management' %}">Projects</a></li>
+            <li class="breadcrumb-item active">{{ project.name }}</li>
+        </ol>
+    </nav>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Project Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center mb-2">
+                                <h1 class="project-title mb-0 me-3">{{ project.name }}</h1>
+                                {% if project.status == 'active' %}
+                                    <span class="badge bg-success status-badge">
+                                        <i class="fas fa-play-circle me-1"></i>Active
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary status-badge">
+                                        <i class="fas fa-stop-circle me-1"></i>Closed
+                                    </span>
+                                {% endif %}
+                            </div>
+                            <p class="text-muted mb-3">{{ project.description|default:"No description provided" }}</p>
+                            <div class="row">
+                                <div class="col-md-4 mb-2">
+                                    <small class="text-muted d-block">Start Date</small>
+                                    <strong>{{ project.start_date|date:"F d, Y" }}</strong>
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <small class="text-muted d-block">End Date</small>
+                                    <strong>{{ project.end_date|date:"F d, Y"|default:"Not set" }}</strong>
+                                </div>
+                                <div class="col-md-4 mb-2">
+                                    <small class="text-muted d-block">Created By</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <div class="btn-group mb-3" role="group">
+                                <a href="{% url 'edit_project' project.id %}" class="btn btn-outline-primary">
+                                    <i class="fas fa-edit me-1"></i>Edit Project
+                                </a>
+                                <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#addWorkEntryModal">
+                                    <i class="fas fa-plus me-1"></i>Add Work Entry
+                                </button>
+                            </div>
+                            <div class="project-stats">
+                                <div class="stat-item">
+                                    <span class="stat-number">{{ work_entries.count }}</span>
+                                    <span class="stat-label">Work Entries</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-number">{{ work_entries|length|default:0 }}</span>
+                                    <span class="stat-label">Total Hours</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <ul class="nav nav-tabs custom-tabs" id="projectTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab">
+                        <i class="fas fa-chart-line me-2"></i>Overview
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="work-entries-tab" data-bs-toggle="tab" data-bs-target="#work-entries" type="button" role="tab">
+                        <i class="fas fa-clock me-2"></i>Work Entries
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="employee-progress-tab" data-bs-toggle="tab" data-bs-target="#employee-progress" type="button" role="tab">
+                        <i class="fas fa-users me-2"></i>Employee Progress
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tasks-tab" data-bs-toggle="tab" data-bs-target="#tasks" type="button" role="tab">
+                        <i class="fas fa-tasks me-2"></i>Tasks
+                    </button>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="projectTabsContent">
+        
+        <!-- Overview Tab -->
+        <div class="tab-pane fade show active" id="overview" role="tabpanel">
+            <div class="row">
+                <!-- Quick Stats -->
+                <div class="col-md-3 mb-4">
+                    <div class="card stat-card border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <div class="stat-icon bg-primary">
+                                <i class="fas fa-clock text-white"></i>
+                            </div>
+                            <h3 class="stat-number">
+                                {% with total_hours=work_entries|length %}
+                                    {% widthratio total_hours 1 1 %}
+                                {% endwith %}
+                            </h3>
+                            <p class="stat-label">Total Hours</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-4">
+                    <div class="card stat-card border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <div class="stat-icon bg-success">
+                                <i class="fas fa-users text-white"></i>
+                            </div>
+                            <h3 class="stat-number">
+                                {% regroup work_entries by employee as employee_groups %}
+                                {{ employee_groups|length }}
+                            </h3>
+                            <p class="stat-label">Active Employees</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-4">
+                    <div class="card stat-card border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <div class="stat-icon bg-warning">
+                                <i class="fas fa-calendar-day text-white"></i>
+                            </div>
+                            <h3 class="stat-number">
+                                {% regroup work_entries by work_date as date_groups %}
+                                {{ date_groups|length }}
+                            </h3>
+                            <p class="stat-label">Working Days</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-4">
+                    <div class="card stat-card border-0 shadow-sm">
+                        <div class="card-body text-center">
+                            <div class="stat-icon bg-info">
+                                <i class="fas fa-tasks text-white"></i>
+                            </div>
+                            <h3 class="stat-number">{{ tasks.count }}</h3>
+                            <p class="stat-label">Total Tasks</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Recent Work Activity</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="timeline">
+                                {% for entry in work_entries|slice:":10" %}
+                                <div class="timeline-item">
+                                    <div class="timeline-marker"></div>
+                                    <div class="timeline-content">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div>
+                                                <h6 class="mb-1">{{ entry.employee.get_full_name|default:entry.employee.username }}</h6>
+                                                <p class="text-muted mb-1">{{ entry.description|truncatewords:20 }}</p>
+                                                <small class="text-muted">{{ entry.work_date|date:"M d, Y" }} • {{ entry.working_hours }} hours</small>
+                                            </div>
+                                            <span class="badge bg-primary">{{ entry.start_time }} - {{ entry.end_time }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% empty %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-clock fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">No work entries yet</p>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Work Entries Tab -->
+        <div class="tab-pane fade" id="work-entries" role="tabpanel">
+            <div class="row mb-3">
+                <div class="col-md-8">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" class="form-control" id="workEntrySearch" placeholder="Search work entries...">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <select class="form-select" id="employeeFilter">
+                        <option value="">All Employees</option>
+                        {% regroup work_entries by employee as employee_groups %}
+                        {% for group in employee_groups %}
+                        <option value="{{ group.grouper.id }}">{{ group.grouper.get_full_name|default:group.grouper.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle" id="workEntriesTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Employee</th>
+                                    <th>Date</th>
+                                    <th>Time</th>
+                                    <th>Hours</th>
+                                    <th>Description</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in work_entries %}
+                                <tr data-employee-id="{{ entry.employee.id }}">
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="employee-avatar me-2">
+                                                {{ entry.employee.first_name|first|default:entry.employee.username|first }}
+                                            </div>
+                                            <div>
+                                                <div class="fw-medium">{{ entry.employee.get_full_name|default:entry.employee.username }}</div>
+                                                <small class="text-muted">{{ entry.employee.email }}</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="fw-medium">{{ entry.work_date|date:"M d, Y" }}</div>
+                                        <small class="text-muted">{{ entry.work_date|date:"l" }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">{{ entry.start_time }} - {{ entry.end_time }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ entry.working_hours }}h</span>
+                                    </td>
+                                    <td>
+                                        <div class="description-cell">{{ entry.description|truncatewords:15 }}</div>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="viewWorkEntry({{ entry.id }})">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            {% if entry.can_edit %}
+                                            <button class="btn btn-sm btn-outline-warning" onclick="editWorkEntry({{ entry.id }})">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-4">
+                                        <i class="fas fa-clock fa-3x text-muted mb-3"></i>
+                                        <p class="text-muted">No work entries found</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Employee Progress Tab -->
+        <div class="tab-pane fade" id="employee-progress" role="tabpanel">
+            <div class="row">
+                {% regroup work_entries by employee as employee_groups %}
+                {% for group in employee_groups %}
+                <div class="col-lg-6 mb-4">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header">
+                            <div class="d-flex align-items-center">
+                                <div class="employee-avatar me-3">
+                                    {{ group.grouper.first_name|first|default:group.grouper.username|first }}
+                                </div>
+                                <div>
+                                    <h6 class="mb-0">{{ group.grouper.get_full_name|default:group.grouper.username }}</h6>
+                                    <small class="text-muted">{{ group.grouper.email }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-4 text-center">
+                                    <div class="progress-stat">
+                                        <h4 class="text-primary mb-0">{{ group.list|length }}</h4>
+                                        <small class="text-muted">Entries</small>
+                                    </div>
+                                </div>
+                                <div class="col-4 text-center">
+                                    <div class="progress-stat">
+                                        <h4 class="text-success mb-0">
+                                            {% for entry in group.list %}
+                                                {% if forloop.first %}{{ entry.working_hours }}{% endif %}
+                                            {% endfor %}h
+                                        </h4>
+                                        <small class="text-muted">Total Hours</small>
+                                    </div>
+                                </div>
+                                <div class="col-4 text-center">
+                                    <div class="progress-stat">
+                                        <h4 class="text-info mb-0">
+                                            {% regroup group.list by work_date as date_groups %}
+                                            {{ date_groups|length }}
+                                        </h4>
+                                        <small class="text-muted">Working Days</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="recent-entries">
+                                <h6 class="mb-2">Recent Entries</h6>
+                                {% for entry in group.list|slice:":3" %}
+                                <div class="entry-item">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <small class="text-muted">{{ entry.work_date|date:"M d" }}</small>
+                                            <div class="entry-description">{{ entry.description|truncatewords:10 }}</div>
+                                        </div>
+                                        <span class="badge bg-light text-dark">{{ entry.working_hours }}h</span>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="text-center py-5">
+                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                        <h4>No Employee Data</h4>
+                        <p class="text-muted">No work entries have been recorded yet</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Tasks Tab -->
+        <div class="tab-pane fade" id="tasks" role="tabpanel">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0">Project Tasks</h5>
+                                <button class="btn btn-primary btn-sm">
+                                    <i class="fas fa-plus me-1"></i>Add Task
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            {% if tasks %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Task</th>
+                                            <th>Status</th>
+                                            <th>Assigned To</th>
+                                            <th>Due Date</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for task in tasks %}
+                                        <tr>
+                                            <td>
+                                                <div class="fw-medium">{{ task.title }}</div>
+                                                <small class="text-muted">{{ task.description|truncatewords:10 }}</small>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-{{ task.status|default:'secondary' }}">
+                                                    {{ task.get_status_display|default:task.status }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {% if task.assigned_to %}
+                                                    {{ task.assigned_to.get_full_name|default:task.assigned_to.username }}
+                                                {% else %}
+                                                    <span class="text-muted">Unassigned</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {{ task.due_date|date:"M d, Y"|default:"-" }}
+                                            </td>
+                                            <td>
+                                                <div class="btn-group" role="group">
+                                                    <button class="btn btn-sm btn-outline-primary">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-warning">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="text-center py-5">
+                                <i class="fas fa-tasks fa-3x text-muted mb-3"></i>
+                                <h4>No Tasks</h4>
+                                <p class="text-muted">This project doesn't have any tasks yet</p>
+                                <button class="btn btn-primary">
+                                    <i class="fas fa-plus me-1"></i>Create First Task
+                                </button>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Work Entry Modal -->
+<div class="modal fade" id="addWorkEntryModal" tabindex="-1" aria-labelledby="addWorkEntryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addWorkEntryModalLabel">
+                    <i class="fas fa-plus-circle me-2"></i>Add Work Entry
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="" id="addWorkEntryForm">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="employee" class="form-label">Employee</label>
+                            <select class="form-select" name="employee" id="employee" required>
+                                <option value="">Select Employee</option>
+                                <!-- Add employee options here -->
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="work_date" class="form-label">Work Date</label>
+                            <input type="date" class="form-control" name="work_date" id="work_date" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="start_time" class="form-label">Start Time</label>
+                            <input type="time" class="form-control" name="start_time" id="start_time" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="end_time" class="form-label">End Time</label>
+                            <input type="time" class="form-control" name="end_time" id="end_time" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="working_hours" class="form-label">Working Hours</label>
+                            <input type="number" class="form-control" name="working_hours" id="working_hours" step="0.5" min="0.1" max="24" required>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" name="description" id="description" rows="3" required></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>Save Entry
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    :root {
+        --primary-color: #176d9d;
+        --secondary-color: #2d2b27;
+        --accent-color: #4c94b4;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --info-color: #06b6d4;
+        --light-bg: #f8fafc;
+        --dark-text: #1f2937;
+        --border-color: #e5e7eb;
+        --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.15);
+        --border-radius: 8px;
+        --transition: all 0.3s ease;
+    }
+
+    body {
+        background-color: #f8f9fa;
+    }
+
+    .project-title {
+        color: var(--dark-text);
+        font-weight: 600;
+        font-size: 2rem;
+    }
+
+    .status-badge {
+        font-size: 0.9rem;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+    }
+
+    .project-stats {
+        display: flex;
+        gap: 2rem;
+    }
+
+    .stat-item {
+        text-align: center;
+    }
+
+    .stat-number {
+        display: block;
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--primary-color);
+    }
+
+    .stat-label {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    /* Custom Tabs */
+    .custom-tabs {
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .custom-tabs .nav-link {
+        border: none;
+        color: #6c757d;
+        font-weight: 500;
+        padding: 1rem 1.5rem;
+        border-bottom: 2px solid transparent;
+        transition: var(--transition);
+    }
+
+    .custom-tabs .nav-link:hover {
+        color: var(--primary-color);
+        border-bottom-color: var(--primary-color);
+    }
+
+    .custom-tabs .nav-link.active {
+        color: var(--primary-color);
+        border-bottom-color: var(--primary-color);
+        background: none;
+    }
+
+    /* Stat Cards */
+    .stat-card {
+        transition: var(--transition);
+    }
+
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-hover);
+    }
+
+    .stat-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+    }
+
+    .stat-card .stat-number {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--dark-text);
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-card .stat-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    /* Timeline */
+    .timeline {
+        position: relative;
+        padding-left: 2rem;
+    }
+
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 15px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--border-color);
+    }
+
+    .timeline-item {
+        position: relative;
+        margin-bottom: 2rem;
+    }
+
+    .timeline-marker {
+        position: absolute;
+        left: -23px;
+        top: 5px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        border: 3px solid white;
+        box-shadow: 0 0 0 2px var(--primary-color);
+    }
+
+    .timeline-content {
+        background: white;
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border-color);
+    }
+
+    /* Search Box */
+    .search-box {
+        position: relative;
+    }
+
+    .search-box i {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+        z-index: 10;
+    }
+
+    .search-box input {
+        padding-left: 40px;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        transition: var(--transition);
+    }
+
+    .search-box input:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.2rem rgba(23, 109, 157, 0.25);
+    }
+
+    /* Employee Avatar */
+    .employee-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    /* Progress Stats */
+    .progress-stat h4 {
+        font-size: 1.5rem;
+        font-weight: 600;
+    }
+
+    .entry-item {
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .entry-item:last-child {
+        border-bottom: none;
+    }
+
+    .entry-description {
+        font-size: 0.9rem;
+        color: var(--dark-text);
+        margin-top: 0.25rem;
+    }
+
+    /* Form Styling */
+    .form-control, .form-select {
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        padding: 0
+    }
+    </style>
+
+{% endblock %}
