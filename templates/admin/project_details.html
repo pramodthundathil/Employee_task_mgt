@@ -186,7 +186,7 @@
                                     <div class="timeline-content">
                                         <div class="d-flex justify-content-between align-items-start">
                                             <div>
-                                                <h6 class="mb-1">{{ entry.employee.get_full_name|default:entry.employee.username }}</h6>
+                                                <h6 class="mb-1">{{ entry.employee.get_full_name|default:entry.employee.first_name }}</h6>
                                                 <p class="text-muted mb-1">{{ entry.description|truncatewords:20 }}</p>
                                                 <small class="text-muted">{{ entry.work_date|date:"M d, Y" }} • {{ entry.working_hours }} hours</small>
                                             </div>
@@ -221,7 +221,7 @@
                         <option value="">All Employees</option>
                         {% regroup work_entries by employee as employee_groups %}
                         {% for group in employee_groups %}
-                        <option value="{{ group.grouper.id }}">{{ group.grouper.get_full_name|default:group.grouper.username }}</option>
+                        <option value="{{ group.grouper.id }}">{{ group.grouper.get_full_name|default:group.grouper.first_name }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -247,10 +247,10 @@
                                     <td>
                                         <div class="d-flex align-items-center">
                                             <div class="employee-avatar me-2">
-                                                {{ entry.employee.first_name|first|default:entry.employee.username|first }}
+                                                {{ entry.employee.first_name|first|default:entry.employee.first_name|first }}
                                             </div>
                                             <div>
-                                                <div class="fw-medium">{{ entry.employee.get_full_name|default:entry.employee.username }}</div>
+                                                <div class="fw-medium">{{ entry.employee.get_full_name|default:entry.employee.first_name }}</div>
                                                 <small class="text-muted">{{ entry.employee.email }}</small>
                                             </div>
                                         </div>
@@ -306,10 +306,10 @@
                         <div class="card-header">
                             <div class="d-flex align-items-center">
                                 <div class="employee-avatar me-3">
-                                    {{ group.grouper.first_name|first|default:group.grouper.username|first }}
+                                    {{ group.grouper.first_name|first|default:group.grouper.first_name|first }}
                                 </div>
                                 <div>
-                                    <h6 class="mb-0">{{ group.grouper.get_full_name|default:group.grouper.username }}</h6>
+                                    <h6 class="mb-0">{{ group.grouper.get_full_name|default:group.grouper.first_name }}</h6>
                                     <small class="text-muted">{{ group.grouper.email }}</small>
                                 </div>
                             </div>
@@ -412,7 +412,7 @@
                                             </td>
                                             <td>
                                                 {% if task.assigned_to %}
-                                                    {{ task.assigned_to.get_full_name|default:task.assigned_to.username }}
+                                                    {{ task.assigned_to.get_full_name|default:task.assigned_to.first_name }}
                                                 {% else %}
                                                     <span class="text-muted">Unassigned</span>
                                                 {% endif %}

@@ -201,9 +201,10 @@ from .models import User, Project, Task, WorkEntry
 class ProjectForm(forms.ModelForm):
     class Meta:
         model = Project
-        fields = ('name', 'description', 'start_date', 'end_date')
+        fields = ('name','project_id', 'description', 'start_date', 'end_date')
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', "placeholder":"Project Title"}),
+            'project_id': forms.TextInput(attrs={'class': 'form-control', "placeholder":"Project Id"}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3,"placeholder":"Enter Project Description"}),
             'start_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'end_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),

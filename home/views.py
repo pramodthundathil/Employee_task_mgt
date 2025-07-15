@@ -67,7 +67,7 @@ def employee_dashboard(request):
         return redirect('admin_dashboard')
     
     # Employee's active projects
-    active_projects = Project.objects.filter(status='active')
+    active_projects = Project.objects.filter(status='active')[:5]
     
     # Employee's recent work entries
     recent_entries = WorkEntry.objects.filter(employee=request.user).order_by('-work_date')[:5]
@@ -371,12 +371,10 @@ def delete_project(request, project_id):
         return redirect('employee_dashboard')
     
     project = get_object_or_404(Project, id=project_id)
-    if request.method == 'POST':
-        project_name = project.name
-        project.delete()
-        messages.success(request, f'Project "{project_name}" deleted successfully!')
-        return redirect('project_management')
-    return render(request, 'admin/delete_project_confirm.html', {'project': project})
+    project_name = project.name
+    project.delete()
+    messages.success(request, f'Project "{project_name}" deleted successfully!')
+    return redirect('project_management')
 
 @login_required
 def project_details(request, project_id):
@@ -398,9 +396,16 @@ def close_project(request, project_id):
         return redirect('employee_dashboard')
     
     project = get_object_or_404(Project, id=project_id)
-    project.status = 'closed'
+    if project.status == "active":
+        project.status = 'closed'
+
+        messages.success(request, f'Project "{project.name}" has been closed.')
+
+    else:
+        project.status = "active"
+        messages.success(request, f'Project "{project.name}" has been Re Opened.')
+
     project.save()
-    messages.success(request, f'Project "{project.name}" has been closed.')
     return redirect('project_management')
 
 @login_required
@@ -473,11 +478,22 @@ def add_work_entry(request):
             today = date.today()
             if (today - work_entry.work_date).days > 2:
                 messages.error(request, 'You can only add work entries for today or yesterday.')
-                return render(request, 'employee/add_work_entry.html', {'form': form})
+                return redirect('add_work_entry')
             
             work_entry.save()
             messages.success(request, 'Work entry added successfully!')
-            return redirect('employee_dashboard')
+            return redirect('add_work_entry')
+        else:
+            errors = []
+            for field, error_list in form.errors.items():
+                for error in error_list:
+                    errors.append(f" {error}")
+
+
+
+            messages.info(request, " | ".join(errors))
+            return redirect('add_work_entry')
+
     else:
         form = WorkEntryForm()
     
@@ -488,7 +504,8 @@ def my_work_entries(request):
     if request.user.role != 'user':
         return redirect('admin_dashboard')
     
-    work_entries = WorkEntry.objects.filter(employee=request.user).order_by('-work_date')
+    # Base queryset
+    work_entries = WorkEntry.objects.filter(employee=request.user).select_related('project').order_by('-work_date', '-created_at')
     
     # Filters
     project_filter = request.GET.get('project')
@@ -496,20 +513,74 @@ def my_work_entries(request):
     
     if project_filter:
         work_entries = work_entries.filter(project_id=project_filter)
+        
     if date_filter:
         work_entries = work_entries.filter(work_date=date_filter)
     
+    # Pagination
     paginator = Paginator(work_entries, 20)
     page = request.GET.get('page')
     work_entries = paginator.get_page(page)
     
-    projects = Project.objects.filter(status='active')
+    # Get active projects for filter dropdown
+    projects = Project.objects.filter(status='active').order_by('name')
+    
+    # Calculate summary stats for the current filter
+    total_entries = work_entries.paginator.count if work_entries else 0
+    total_hours = WorkEntry.objects.filter(employee=request.user).aggregate(
+        total=Sum('working_hours')
+    )['total'] or 0
+    
+    # Get recent activity summary
+    today = date.today()
+    recent_entries = WorkEntry.objects.filter(
+        employee=request.user,
+        work_date__gte=today - timedelta(days=7)
+    ).count()
     
     context = {
         'work_entries': work_entries,
         'projects': projects,
+        'total_entries': total_entries,
+        'total_hours': total_hours,
+        'recent_entries': recent_entries,
+        'current_filters': {
+            'project': project_filter,
+            'date': date_filter,
+        },
+        'today': today,
     }
+    
     return render(request, 'employee/my_work_entries.html', context)
+
+@login_required
+def view_work_entry(request, entry_id):
+    """View for viewing work entry details"""
+    if request.user.role != 'user':
+        return redirect('admin_dashboard')
+    
+    try:
+        entry = WorkEntry.objects.get(id=entry_id, employee=request.user)
+    except WorkEntry.DoesNotExist:
+        messages.error(request, 'Work entry not found.')
+        return redirect('my_work_entries')
+    
+    return render(request, 'employee/view_work_entry.html', {'entry': entry})
+
+@login_required
+def view_work_entry_admin(request, entry_id):
+    """View for viewing work entry details"""
+    if request.user.role != 'admin':
+        return redirect('employee_dashboard')
+    
+    try:
+        entry = WorkEntry.objects.get(id=entry_id)
+    except WorkEntry.DoesNotExist:
+        messages.info(request, 'Work entry not found.')
+        return redirect('work_entry_management')
+    
+    return render(request, 'admin/view_work_entry.html', {'entry': entry})
+
 
 @login_required
 def reports(request):
@@ -545,9 +616,9 @@ def reports(request):
     
     # Generate report data
     if report_type == 'employee':
-        report_data = work_entries.values('employee__username', 'employee__first_name', 'employee__last_name').annotate(
+        report_data = work_entries.values('employee__email', 'employee__first_name', 'employee__last_name').annotate(
             total_hours=Sum('working_hours')
-        ).order_by('employee__username')
+        ).order_by('employee__id')
     else:  # project
         report_data = work_entries.values('project__name').annotate(
             total_hours=Sum('working_hours')

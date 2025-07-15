@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}GREAT Waters - Work Entries{% endblock %}
+{% block title %}GREAT Waters - My Work Entries{% endblock %}
 
 {% block breadcrumb %}
 <div class="container">
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
             <li class="breadcrumb-item"><a href="{% url 'employee_dashboard' %}">Dashboard</a></li>
-            <li class="breadcrumb-item active">My Work entries</li>
+            <li class="breadcrumb-item active">My Work Entries</li>
         </ol>
     </nav>
 </div>
@@ -19,6 +19,431 @@
     <!-- Alert container for messages -->
     <div id="alert-container"></div>
 
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="h4 mb-0">My Work Entries</h2>
+                    <p class="text-muted mb-0">Track and view your work history</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary" id="exportBtn">
+                        <i class="fas fa-download"></i> Export My Records
+                    </button>
+                    <a href="{% url 'add_work_entry' %}" class="btn btn-success">
+                        <i class="fas fa-plus"></i> Add New Entry
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
 
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                <i class="fas fa-clipboard-list"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-0">Total Entries</h6>
+                            <h4 class="mb-0 text-primary">{{ total_entries }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-0">Total Hours</h6>
+                            <h4 class="mb-0 text-success">{{ total_hours }}h</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="bg-info text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                <i class="fas fa-calendar-week"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-0">This Week</h6>
+                            <h4 class="mb-0 text-info">{{ recent_entries }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-filter"></i> Filter My Entries
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="project" class="form-label">Project</label>
+                        <select class="form-select" id="project" name="project">
+                            <option value="">All Projects</option>
+                            {% for project in projects %}
+                            <option value="{{ project.id }}" {% if current_filters.project == project.id|stringformat:"s" %}selected{% endif %}>
+                                {{ project.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="date" class="form-label">Work Date</label>
+                        <input type="date" class="form-control" id="date" name="date" value="{{ current_filters.date }}">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search"></i> Filter
+                            </button>
+                            <a href="{% url 'my_work_entries' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Clear
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Work Entries -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-history"></i> My Work History
+                {% if current_filters.project or current_filters.date %}
+                <span class="badge bg-primary ms-2">Filtered</span>
+                {% endif %}
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            {% if work_entries %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Project</th>
+                            <th>Time Period</th>
+                            <th>Duration</th>
+                            <th>Description</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in work_entries %}
+                        <tr>
+                            <td>
+                                <div>
+                                    <strong>{{ entry.work_date|date:"M d, Y" }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ entry.work_date|date:"l" }}</small>
+                                </div>
+                            </td>
+                            <td>
+                                <div>
+                                    <strong class="text-primary">{{ entry.project.name }}</strong>
+                                    <br>
+                                    <span class="badge bg-{{ entry.project.status|yesno:'success,secondary' }} badge-sm">
+                                        {{ entry.project.get_status_display }}
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex flex-column">
+                                    <span class="text-success">
+                                        <i class="fas fa-play-circle"></i> {{ entry.start_time|time:"g:i A" }}
+                                    </span>
+                                    <span class="text-danger">
+                                        <i class="fas fa-stop-circle"></i> {{ entry.end_time|time:"g:i A" }}
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary fs-6 px-3 py-2">
+                                    {{ entry.working_hours }}h
+                                </span>
+                            </td>
+                            <td>
+                                <div class="description-cell" style="max-width: 250px;">
+                                    {% if entry.description|length > 60 %}
+                                        <span class="description-short">{{ entry.description|truncatechars:60 }}</span>
+                                        <span class="description-full d-none">{{ entry.description }}</span>
+                                        <button class="btn btn-link btn-sm p-0 ms-1 toggle-description" type="button">
+                                            <i class="fas fa-expand-alt text-primary"></i>
+                                        </button>
+                                    {% else %}
+                                        {{ entry.description }}
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex flex-column">
+                                    {% if entry.can_edit %}
+                                        <span class="badge bg-success mb-1">
+                                            <i class="fas fa-edit"></i> Can Edit
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary mb-1">
+                                            <i class="fas fa-lock"></i> Locked
+                                        </span>
+                                    {% endif %}
+                                    {% if entry.work_date == today %}
+                                        <span class="badge bg-info">
+                                            <i class="fas fa-calendar-day"></i> Today
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    <a href="{% url 'view_work_entry' entry.id %}" 
+                                       class="btn btn-sm btn-outline-primary"
+                                       title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if entry.can_edit %}
+                                    <a href="{% url 'edit_work_entry' entry.id %}" 
+                                       class="btn btn-sm btn-outline-warning"
+                                       title="Edit Entry">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <div class="text-muted">
+                    <i class="fas fa-clipboard-list fa-3x mb-3"></i>
+                    <h5>No Work Entries Found</h5>
+                    {% if current_filters.project or current_filters.date %}
+                        <p>No entries match your current filters.</p>
+                        <a href="{% url 'my_work_entries' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> Clear Filters
+                        </a>
+                    {% else %}
+                        <p>You haven't added any work entries yet.</p>
+                        <a href="{% url 'add_work_entry' %}" class="btn btn-success">
+                            <i class="fas fa-plus"></i> Add Your First Entry
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Pagination -->
+        {% if work_entries.has_other_pages %}
+        <div class="card-footer bg-light">
+            <nav aria-label="Work entries pagination">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if work_entries.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if current_filters.project %}project={{ current_filters.project }}&{% endif %}{% if current_filters.date %}date={{ current_filters.date }}&{% endif %}page={{ work_entries.previous_page_number }}">
+                            <i class="fas fa-chevron-left"></i> Previous
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for num in work_entries.paginator.page_range %}
+                    {% if work_entries.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > work_entries.number|add:'-3' and num < work_entries.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if current_filters.project %}project={{ current_filters.project }}&{% endif %}{% if current_filters.date %}date={{ current_filters.date }}&{% endif %}page={{ num }}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                    
+                    {% if work_entries.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if current_filters.project %}project={{ current_filters.project }}&{% endif %}{% if current_filters.date %}date={{ current_filters.date }}&{% endif %}page={{ work_entries.next_page_number }}">
+                            Next <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            <div class="text-center mt-2">
+                <small class="text-muted">
+                    Showing {{ work_entries.start_index }} to {{ work_entries.end_index }} of {{ work_entries.paginator.count }} entries
+                </small>
+            </div>
+        </div>
+        {% endif %}
+    </div>
 </div>
+
+<style>
+.card {
+    transition: box-shadow 0.15s ease-in-out;
+}
+
+.card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+.description-cell {
+    position: relative;
+}
+
+.toggle-description {
+    color: #0d6efd;
+    font-size: 0.75rem;
+    text-decoration: none;
+}
+
+.toggle-description:hover {
+    text-decoration: underline;
+}
+
+.table td {
+    vertical-align: middle;
+    padding: 1rem 0.75rem;
+}
+
+.table th {
+    font-weight: 600;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.badge-sm {
+    font-size: 0.7rem;
+}
+
+.btn-group .btn {
+    margin-right: 4px;
+}
+
+.summary-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.fs-6 {
+    font-size: 1rem !important;
+}
+
+.text-success {
+    color: #198754 !important;
+}
+
+.text-danger {
+    color: #dc3545 !important;
+}
+
+.text-primary {
+    color: #0d6efd !important;
+}
+
+.bg-light {
+    background-color: #f8f9fa !important;
+}
+
+.shadow-sm {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
+}
+
+.border-0 {
+    border: 0 !important;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle description functionality
+    document.querySelectorAll('.toggle-description').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const cell = this.closest('.description-cell');
+            const shortText = cell.querySelector('.description-short');
+            const fullText = cell.querySelector('.description-full');
+            const icon = this.querySelector('i');
+            
+            if (fullText.classList.contains('d-none')) {
+                shortText.classList.add('d-none');
+                fullText.classList.remove('d-none');
+                icon.classList.remove('fa-expand-alt');
+                icon.classList.add('fa-compress-alt');
+                this.title = 'Show less';
+            } else {
+                shortText.classList.remove('d-none');
+                fullText.classList.add('d-none');
+                icon.classList.remove('fa-compress-alt');
+                icon.classList.add('fa-expand-alt');
+                this.title = 'Show more';
+            }
+        });
+    });
+
+    // Export functionality
+    document.getElementById('exportBtn').addEventListener('click', function() {
+        // Implement export functionality
+        console.log('Export functionality');
+        // You can implement CSV/PDF export here
+    });
+
+    // Auto-submit form on filter change
+    document.getElementById('project').addEventListener('change', function() {
+        if (this.value !== '') {
+            document.getElementById('filterForm').submit();
+        }
+    });
+
+    // Highlight today's entries
+    const today = new Date().toISOString().split('T')[0];
+    document.querySelectorAll('tbody tr').forEach(function(row) {
+        const dateCell = row.querySelector('td:first-child strong');
+        if (dateCell) {
+            const entryDate = new Date(dateCell.textContent);
+            const todayDate = new Date(today);
+            if (entryDate.toDateString() === todayDate.toDateString()) {
+                row.classList.add('table-info');
+            }
+        }
+    });
+});
+</script>
+
 {% endblock %}

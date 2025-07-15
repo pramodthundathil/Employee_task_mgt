@@ -92,6 +92,7 @@ class Project(models.Model):
     ]
     
     name = models.CharField(max_length=200)
+    project_id = models.CharField(max_length=20)
     description = models.TextField(blank=True)
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
@@ -104,7 +105,7 @@ class Project(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return self.name
+        return str(self.project_id) + " - "+str(self.name)
 
 class Task(models.Model):
     PRIORITY_CHOICES = [
@@ -147,10 +148,10 @@ class WorkEntry(models.Model):
 
     class Meta:
         ordering = ['-work_date', '-created_at']
-        unique_together = ['employee', 'project', 'work_date', 'start_time']
+        
 
     def __str__(self):
-        return f"{self.employee.username} - {self.project.name} - {self.work_date}"
+        return f"{self.employee.first_name} - {self.project.name} - {self.work_date}"
 
     def can_edit(self):
         """Check if work entry can be edited (within 2 days)"""

@@ -36,6 +36,7 @@ urlpatterns = [
     # Work Entry Management (Admin)
     path('work-entries/', views.work_entry_management, name='work_entry_management'),
     path('work-entries/<int:entry_id>/edit/', views.edit_work_entry, name='edit_work_entry'),
+    path('view/<int:entry_id>/work-entry',views.view_work_entry_admin,name="view_work_entry_admin"),
 
     # Reports (Admin)
     path('reports/', views.reports, name='reports'),
@@ -43,6 +44,7 @@ urlpatterns = [
     # Work Entries (Employee)
     path('employee/work-entries/add/', views.add_work_entry, name='add_work_entry'),
     path('employee/work-entries/', views.my_work_entries, name='my_work_entries'),
+    path('work-entries/<int:entry_id>/view/', views.view_work_entry, name='view_work_entry'),
 
     # APIs
     path('api/available-dates/', views.get_available_dates, name='get_available_dates'),
