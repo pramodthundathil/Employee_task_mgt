@@ -5,6 +5,7 @@ urlpatterns = [
      # Authentication
     path("",views.login_view,name="login_view"),
     path('logout/', views.logout_view, name='logout'),
+    path('profile/update/', views.profile_update, name='profile_update'),
 
     # Dashboards
     path('dashboard/', views.admin_dashboard, name='admin_dashboard'),
@@ -66,3 +67,8 @@ urlpatterns = [
     path('reports/summary/', views.get_report_summary, name='get_report_summary'),
 
 ]
+
+handler404 = views.custom_page_not_found_view
+handler500 = views.custom_server_error_view
+handler403 = views.custom_permission_denied_view
+handler400 = views.custom_bad_request_view

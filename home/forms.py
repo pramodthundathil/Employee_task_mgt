@@ -1,9 +1,16 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, UserChangeForm
 from .models import CustomUser
+from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth.forms import PasswordChangeForm
+from django import forms
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+import os
 
 from django import forms
 from .models import CustomUser
+
 class CustomUserForm(forms.ModelForm):
     password1 = forms.CharField(
         widget=forms.PasswordInput(
@@ -168,7 +175,50 @@ class CustomUserCreationForm(UserCreationForm):
             'is_staff', 'role'
         ]
 
+class ProfileUpdateForm(forms.Form):
+    profile_picture = forms.FileField(
+        required=False,
+        widget=forms.ClearableFileInput(attrs={
+            'class': 'form-control',
+            'accept': 'image/*'
+        }),
+        help_text="Upload a new profile picture (optional)"
+    )
+    
+    def clean_profile_picture(self):
+        picture = self.cleaned_data.get('profile_picture')
+        if picture:
+            # Check file size (limit to 5MB)
+            if picture.size > 5 * 1024 * 1024:
+                raise forms.ValidationError("Image file too large ( > 5MB )")
+            
+            # Check file extension
+            valid_extensions = ['.jpg', '.jpeg', '.png', '.gif']
+            ext = os.path.splitext(picture.name)[1].lower()
+            if ext not in valid_extensions:
+                raise forms.ValidationError("Invalid file type. Please upload a valid image file.")
+        
+        return picture
 
+class CustomPasswordChangeForm(PasswordChangeForm):
+    old_password = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Current Password'
+        })
+    )
+    new_password1 = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'New Password'
+        })
+    )
+    new_password2 = forms.CharField(
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Confirm New Password'
+        })
+    )
 
 
 from django import forms

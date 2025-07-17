@@ -39,6 +39,29 @@ import json
 from django.views.decorators.csrf import csrf_exempt
 
 
+def custom_page_not_found_view(request, exception):
+    messages.info(request, 'Something Wrong')
+    return redirect('employee_dashboard')
+
+def custom_server_error_view(request):
+    messages.info(request, 'Something Wrong')
+
+    return redirect('employee_dashboard')
+
+
+def custom_permission_denied_view(request, exception):
+    messages.info(request, 'Something Wrong')
+
+    return redirect('employee_dashboard')
+
+
+def custom_bad_request_view(request, exception):
+    messages.info(request, 'Something Wrong')
+
+    return redirect('employee_dashboard')
+
+
+
 def login_view(request):
     if request.method == 'POST':
         username = request.POST.get('email')
@@ -60,6 +83,67 @@ def login_view(request):
 def logout_view(request):
     logout(request)
     return redirect('login_view')
+
+
+@login_required
+def profile_update(request):
+    if request.method == 'POST':
+        profile_form = ProfileUpdateForm(request.POST, request.FILES)
+        password_form = CustomPasswordChangeForm(request.user, request.POST)
+        
+        profile_updated = False
+        password_updated = False
+        
+        # Handle profile picture update
+        if profile_form.is_valid() and request.FILES.get('profile_picture'):
+            # Delete old profile picture if it exists
+            if request.user.profile_picture:
+                if default_storage.exists(request.user.profile_picture.name):
+                    default_storage.delete(request.user.profile_picture.name)
+            
+            # Save new profile picture
+            request.user.profile_picture = profile_form.cleaned_data['profile_picture']
+            request.user.save()
+            profile_updated = True
+            messages.success(request, 'Profile picture updated successfully!')
+        
+        # Handle password update
+        if password_form.is_valid() and any([
+            password_form.cleaned_data.get('old_password'),
+            password_form.cleaned_data.get('new_password1'),
+            password_form.cleaned_data.get('new_password2')
+        ]):
+            user = password_form.save()
+            update_session_auth_hash(request, user)  # Important for keeping user logged in
+            password_updated = True
+            messages.success(request, 'Password updated successfully!')
+        
+        # Handle form errors
+        if not profile_form.is_valid():
+            for field, errors in profile_form.errors.items():
+                for error in errors:
+                    messages.info(request, f"Profile Picture: {error}")
+        
+        if not password_form.is_valid():
+            for field, errors in password_form.errors.items():
+                for error in errors:
+                    messages.info(request, f"Password: {error}")
+        
+        # Redirect if at least one form was successfully updated
+        if profile_updated or password_updated:
+            return redirect('profile_update')
+    
+    else:
+        profile_form = ProfileUpdateForm()
+        password_form = CustomPasswordChangeForm(request.user)
+    
+    context = {
+        'profile_form': profile_form,
+        'password_form': password_form,
+        'user': request.user,
+    }
+    
+    return render(request, 'profile_update.html', context)
 
 
 @login_required
@@ -992,11 +1076,17 @@ User = get_user_model()
 def project_work_hours_report(request, project_id):
     """View to display work hours and payment calculation for a specific project"""
     project = get_object_or_404(Project, id=project_id)
+    # Set default date range to one month
     
     # Get date filters from request
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     employee_id = request.GET.get('employee')
+
+    if not start_date:
+        start_date = (timezone.now() - timedelta(days=30)).date()
+    if not end_date:
+        end_date = timezone.now().date()
     
     # Base queryset
     work_entries = WorkEntry.objects.filter(project=project)
@@ -1064,6 +1154,11 @@ def all_projects_work_summary(request):
     # Get date filters
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
+   
+    if not start_date:
+        start_date = (timezone.now() - timedelta(days=30)).date()
+    if not end_date:
+        end_date = timezone.now().date()
     
     # Base queryset
     work_entries = WorkEntry.objects.all()
@@ -1128,6 +1223,11 @@ def employee_work_report(request, employee_id):
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     project_id = request.GET.get('project')
+
+    if not start_date:
+        start_date = (timezone.now() - timedelta(days=30)).date()
+    if not end_date:
+        end_date = timezone.now().date()
     
     # Base queryset
     work_entries = WorkEntry.objects.filter(employee=employee)
@@ -1185,6 +1285,9 @@ def employee_work_report(request, employee_id):
     
     return render(request, 'admin/employee_work_report.html', context)
 
+from datetime import datetime
+from django.core.exceptions import ValidationError
+
 @login_required
 def export_project_report_excel(request, project_id):
     """Export project work hours report to Excel"""
@@ -1195,13 +1298,43 @@ def export_project_report_excel(request, project_id):
     end_date = request.GET.get('end_date')
     employee_id = request.GET.get('employee')
     
+    # Parse date strings to proper format
+    def parse_date(date_string):
+        if not date_string:
+            return None
+        
+        try:
+            # Try different date formats
+            date_formats = [
+                '%B %d, %Y',    # "June 17, 2025"
+                '%Y-%m-%d',     # "2025-06-17"
+                '%m/%d/%Y',     # "06/17/2025"
+                '%d/%m/%Y',     # "17/06/2025"
+            ]
+            
+            for fmt in date_formats:
+                try:
+                    return datetime.strptime(date_string, fmt).date()
+                except ValueError:
+                    continue
+            
+            # If none of the formats work, raise an error
+            raise ValueError(f"Invalid date format: {date_string}")
+            
+        except ValueError as e:
+            raise ValidationError(f"Invalid date format: {date_string}. Please use YYYY-MM-DD format.")
+    
+    # Parse the dates
+    parsed_start_date = parse_date(start_date)
+    parsed_end_date = parse_date(end_date)
+    
     # Filter work entries
     work_entries = WorkEntry.objects.filter(project=project)
-    if start_date:
-        work_entries = work_entries.filter(work_date__gte=start_date)
-    if end_date:
-        work_entries = work_entries.filter(work_date__lte=end_date)
-    if employee_id:
+    if parsed_start_date:
+        work_entries = work_entries.filter(work_date__gte=parsed_start_date)
+    if parsed_end_date:
+        work_entries = work_entries.filter(work_date__lte=parsed_end_date)
+    if employee_id and employee_id != 'None':
         work_entries = work_entries.filter(employee_id=employee_id)
     
     # Create workbook
@@ -1309,18 +1442,20 @@ def export_project_report_excel(request, project_id):
     
     # Generate filename
     date_suffix = ""
-    if start_date and end_date:
-        date_suffix = f"_{start_date}_to_{end_date}"
-    elif start_date:
-        date_suffix = f"_from_{start_date}"
-    elif end_date:
-        date_suffix = f"_until_{end_date}"
+    if parsed_start_date and parsed_end_date:
+        date_suffix = f"_{parsed_start_date}_to_{parsed_end_date}"
+    elif parsed_start_date:
+        date_suffix = f"_from_{parsed_start_date}"
+    elif parsed_end_date:
+        date_suffix = f"_until_{parsed_end_date}"
     
     filename = f"project_report_{project.project_id}{date_suffix}.xlsx"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     wb.save(response)
     return response
+from datetime import datetime
+from django.core.exceptions import ValidationError
 
 @login_required
 def export_all_projects_excel(request):
@@ -1330,12 +1465,42 @@ def export_all_projects_excel(request):
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     
+    # Parse date strings to proper format
+    def parse_date(date_string):
+        if not date_string:
+            return None
+        
+        try:
+            # Try different date formats
+            date_formats = [
+                '%B %d, %Y',    # "June 17, 2025"
+                '%Y-%m-%d',     # "2025-06-17"
+                '%m/%d/%Y',     # "06/17/2025"
+                '%d/%m/%Y',     # "17/06/2025"
+            ]
+            
+            for fmt in date_formats:
+                try:
+                    return datetime.strptime(date_string, fmt).date()
+                except ValueError:
+                    continue
+            
+            # If none of the formats work, raise an error
+            raise ValueError(f"Invalid date format: {date_string}")
+            
+        except ValueError as e:
+            raise ValidationError(f"Invalid date format: {date_string}. Please use YYYY-MM-DD format.")
+    
+    # Parse the dates
+    parsed_start_date = parse_date(start_date)
+    parsed_end_date = parse_date(end_date)
+    
     # Filter work entries
     work_entries = WorkEntry.objects.all()
-    if start_date:
-        work_entries = work_entries.filter(work_date__gte=start_date)
-    if end_date:
-        work_entries = work_entries.filter(work_date__lte=end_date)
+    if parsed_start_date:
+        work_entries = work_entries.filter(work_date__gte=parsed_start_date)
+    if parsed_end_date:
+        work_entries = work_entries.filter(work_date__lte=parsed_end_date)
     
     # Create workbook
     wb = openpyxl.Workbook()
@@ -1419,21 +1584,18 @@ def export_all_projects_excel(request):
     
     # Generate filename
     date_suffix = ""
-    if start_date and end_date:
-        date_suffix = f"_{start_date}_to_{end_date}"
-    elif start_date:
-        date_suffix = f"_from_{start_date}"
-    elif end_date:
-        date_suffix = f"_until_{end_date}"
+    if parsed_start_date and parsed_end_date:
+        date_suffix = f"_{parsed_start_date}_to_{parsed_end_date}"
+    elif parsed_start_date:
+        date_suffix = f"_from_{parsed_start_date}"
+    elif parsed_end_date:
+        date_suffix = f"_until_{parsed_end_date}"
     
     filename = f"all_projects_summary{date_suffix}.xlsx"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     wb.save(response)
     return response
-
-
-
 #report of all manner 
 
 @login_required

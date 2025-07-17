@@ -39,10 +39,10 @@
             </div>
         </div>
         <div class="col-md-4 text-end">
-            <a href="{% url 'employee_work_report' employee.id %}?start_date={{start_date}}&end_date={{end_date}}&project={{selected_project}}&export=excel" 
+            <!-- <a href="{% url 'employee_work_report' employee.id %}?start_date={{start_date}}&end_date={{end_date}}&project={{selected_project}}&export=excel" 
                class="btn btn-success">
                 <i class="fas fa-file-excel me-2"></i>Export Excel
-            </a>
+            </a> -->
         </div>
     </div>
 
@@ -56,15 +56,15 @@
         <div class="card-body">
             <form method="get" class="row g-3">
                 <div class="col-md-3">
-                    <label for="start_date" class="form-label">Start Date</label>
-                    <input type="date" class="form-control" id="start_date" name="start_date" 
-                           value="{{start_date}}">
-                </div>
-                <div class="col-md-3">
-                    <label for="end_date" class="form-label">End Date</label>
-                    <input type="date" class="form-control" id="end_date" name="end_date" 
-                           value="{{end_date}}">
-                </div>
+                <label for="start_date" class="form-label">Start Date</label>
+                <input type="date" class="form-control" id="start_date" name="start_date" 
+                    value="{{ start_date|date:'Y-m-d' }}">
+            </div>
+            <div class="col-md-3">
+                <label for="end_date" class="form-label">End Date</label>
+                <input type="date" class="form-control" id="end_date" name="end_date" 
+                    value="{{ end_date|date:'Y-m-d' }}">
+            </div>
                 <div class="col-md-3">
                     <label for="project" class="form-label">Project</label>
                     <select class="form-select" id="project" name="project">

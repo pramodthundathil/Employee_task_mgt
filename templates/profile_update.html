@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}GREAT Waters - Profile Update{% endblock %}
+
+{% block breadcrumb %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'employee_dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item active">Profile Update</li>
+        </ol>
+    </nav>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Alert container for messages -->
+    <div id="alert-container">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-user-edit me-2"></i>Update Profile
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- Current Profile Info -->
+                    <div class="row mb-4">
+                        <div class="col-md-3 text-center">
+                            {% if user.profile_picture %}
+                                <img src="{{ user.profile_picture.url }}" 
+                                     alt="Profile Picture" 
+                                     class="img-fluid rounded-circle mb-2" 
+                                     style="width: 120px; height: 120px; object-fit: cover;">
+                            {% else %}
+                                <div class="bg-secondary rounded-circle d-flex align-items-center justify-content-center mb-2" 
+                                     style="width: 120px; height: 120px; margin: 0 auto;">
+                                    <i class="fas fa-user fa-3x text-white"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-9">
+                            <h5>{{ user.first_name }} {{ user.last_name }}</h5>
+                            <p class="text-muted mb-1">{{ user.email }}</p>
+                            <p class="text-muted mb-1">{{ user.designation|default:"No designation" }}</p>
+                            <p class="text-muted mb-0">Member since: {{ user.date_joined|date:"F d, Y" }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Update Forms -->
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <!-- Profile Picture Update Section -->
+                        <div class="card mb-4 d-none">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-camera me-2"></i>Update Profile Picture
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="mb-3">
+                                            <label for="{{ profile_form.profile_picture.id_for_label }}" class="form-label">
+                                                Choose New Profile Picture
+                                            </label>
+                                            {{ profile_form.profile_picture }}
+                                            <div class="form-text">
+                                                {{ profile_form.profile_picture.help_text }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="text-center">
+                                            <img id="preview-image" 
+                                                 src="{% if user.profile_picture %}{{ user.profile_picture.url }}{% else %}{% static 'images/default-avatar.png' %}{% endif %}" 
+                                                 alt="Preview" 
+                                                 class="img-fluid rounded-circle" 
+                                                 style="width: 100px; height: 100px; object-fit: cover;">
+                                            <div class="mt-2">
+                                                <small class="text-muted">Preview</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Password Update Section -->
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-lock me-2"></i>Change Password
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="{{ password_form.old_password.id_for_label }}" class="form-label">
+                                                Current Password
+                                            </label>
+                                            {{ password_form.old_password }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="{{ password_form.new_password1.id_for_label }}" class="form-label">
+                                                New Password
+                                            </label>
+                                            {{ password_form.new_password1 }}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="{{ password_form.new_password2.id_for_label }}" class="form-label">
+                                                Confirm New Password
+                                            </label>
+                                            {{ password_form.new_password2 }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="alert alert-info">
+                                    <small>
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Password must be at least 8 characters long and cannot be too common.
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Submit Buttons -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'employee_dashboard' %}" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>Update Profile
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Image preview functionality
+    const profilePictureInput = document.getElementById('{{ profile_form.profile_picture.id_for_label }}');
+    const previewImage = document.getElementById('preview-image');
+    
+    if (profilePictureInput && previewImage) {
+        profilePictureInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewImage.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+    
+    // Auto-hide alerts after 5 seconds
+    setTimeout(function() {
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(function(alert) {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        });
+    }, 5000);
+});
+</script>
+{% endblock %}
