@@ -39,11 +39,13 @@ class CustomUserForm(forms.ModelForm):
     class Meta:
         model = CustomUser
         fields = [
-            'email', 'first_name', 'last_name', 'designation', 'profile_picture',
+            'email', 'first_name', 'last_name','employee_id', 'designation', 'profile_picture',
             'man_hour_of_employee', 'phone_number', 'date_of_birth',
             'pin_code', 'age', 'district', 'state', 'address', 'role'
         ]  # Removed password1 and password2 from here
-
+        labels = {
+            'man_hour_of_employee': 'Man Hour Rate (USD)',
+        }
         widgets = {
             'email': forms.EmailInput(attrs={
                 'class': 'form-control',
@@ -59,6 +61,11 @@ class CustomUserForm(forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'Enter Last Name',
                 'id': 'last_name'
+            }),
+               'employee_id': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter Employee Id',
+                'id': 'employee_id'
             }),
             'designation': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -158,7 +165,7 @@ class CustomUserFormEdit(forms.ModelForm):
     class Meta:
         model = CustomUser
         fields = [
-            'email', 'first_name', 'last_name', 'designation', 'profile_picture',
+            'email', 'first_name', 'last_name','employee_id', 'designation', 'profile_picture',
             'man_hour_of_employee', 'is_verified', 'phone_number', 'date_of_birth',
             'pin_code', 'age', 'district', 'state', 'address', 'is_active',
             'is_staff', 'role', 'password'
@@ -169,7 +176,7 @@ class CustomUserCreationForm(UserCreationForm):
     class Meta:
         model = CustomUser
         fields = [
-            'email', 'first_name', 'last_name', 'designation', 'profile_picture',
+            'email', 'first_name', 'last_name','employee_id', 'designation', 'profile_picture',
             'man_hour_of_employee', 'is_verified', 'phone_number', 'date_of_birth',
             'pin_code', 'age', 'district', 'state', 'address', 'is_active',
             'is_staff', 'role'

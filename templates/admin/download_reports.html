@@ -55,6 +55,14 @@
                         
                         <!-- Report Type Selection -->
                         <div class="row mb-3">
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Report Format</label>
+                                <select class="form-select" name="report_format" id="reportFormat" required>
+                                    <option value="" selected disabled>Select Report Format</option>
+                                    <option value="Tables">Tables</option>
+                                    <option value="Full">Full</option>
+                                </select>
+                            </div>
                             <div class="col-md-6">
                                 <label class="form-label">Report Type</label>
                                 <select class="form-select" name="report_type" id="reportType" required>
@@ -371,7 +379,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Add a timeout to hide loading modal in case of issues
         setTimeout(() => {
             loadingModal.hide();
-        }, 30000); // 30 seconds timeout
+        }, 3000); // 30 seconds timeout
     });
 
     // Reset form

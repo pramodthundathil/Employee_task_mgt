@@ -28,6 +28,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True, verbose_name='email address')
     first_name = models.CharField(max_length=30, null=True, blank=True, verbose_name='first name')
     last_name = models.CharField(max_length=30, null=True, blank=True, verbose_name='last name')
+    employee_id = models.CharField(max_length=30, null=True, blank=True, verbose_name='employee_id')
     designation = models.CharField(max_length=200, null=True, blank=True)
     profile_picture = models.FileField(upload_to="profile_pic", null=True, blank=True)
     man_hour_of_employee = models.DecimalField(default=0, max_digits = 5, decimal_places = 2)

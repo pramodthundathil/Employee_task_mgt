@@ -35,7 +35,7 @@
                         <table id="employeeTable" class="table table-striped modern-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
+                                    <th>Employee ID</th>
                                     <th>Profile</th>
                                     <th>Name</th>
                                     <th>Email</th>
@@ -43,14 +43,14 @@
                                     <th>Designation</th>
                                     <th>Role</th>
                                     <th>Status</th>
-                                    <th>Date Joined</th>
+                                   
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for employee in employees %}
                                 <tr>
-                                    <td>{{ employee.id }}</td>
+                                    <td>{{ employee.employee_id }}</td>
                                     <td>
                                         {% if employee.profile_picture %}
                                             <img src="{{ employee.profile_picture.url }}" alt="Profile" class="profile-img">
@@ -76,7 +76,7 @@
                                             <span class="badge badge-secondary">Inactive</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ employee.date_joined|date:"M d, Y" }}</td>
+                                   
                                     <td>
                                         <div class="btn-group action-buttons" role="group">
                                             <button type="button" class="btn btn-sm btn-info" onclick="viewEmployee({{ employee.id }})" title="View Details">
