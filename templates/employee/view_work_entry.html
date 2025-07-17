@@ -24,7 +24,7 @@
                 <h2 class="h4 mb-0">Work Entry Details</h2>
                 <div class="d-flex gap-2">
                     {% if entry.can_edit %}
-                        <a href="{% url 'edit_work_entry' entry.id %}" class="btn btn-outline-primary">
+                        <a href="{% url 'edit_work_entry_employee' entry.id %}" class="btn btn-outline-primary">
                             <i class="fas fa-edit"></i> Edit Entry
                         </a>
                     {% endif %}

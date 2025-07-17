@@ -159,9 +159,15 @@ class WorkEntry(models.Model):
         return (today - self.work_date).days <= 2
 
     def save(self, *args, **kwargs):
-        # Ensure work_date is not more than 2 days old when creating
-        if not self.pk:  # Only for new entries
-            today = date.today()
-            if (today - self.work_date).days > 2:
-                raise ValueError("Cannot create work entry for dates older than 2 days")
+        user = kwargs.pop('user', None)  # Extract the user passed from view
+        # Validate start_time and end_time
+        if self.start_time >= self.end_time:
+            raise ValueError("End time must be after start time")
+
+        # if not self.pk:  # Only for new entries
+        #     today = date.today()
+        #     if (today - self.work_date).days > 3:
+        #         if not user or user.role != 'admin':
+        #             raise ValueError("Cannot create work entry for dates older than 3 days (admin only)")
+        
         super().save(*args, **kwargs)

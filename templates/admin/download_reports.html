@@ -1,0 +1,450 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}GREAT Waters - Reports Dashboard{% endblock %}
+
+{% block breadcrumb %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'admin_dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item active">Reports</li>
+        </ol>
+    </nav>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Alert container for messages -->
+    <div id="alert-container">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Work Reports Dashboard</h4>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">Generate comprehensive work reports for employees and projects with various date ranges and export to Excel.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Generation Form -->
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-cog me-2"></i>Report Configuration</h5>
+                </div>
+                <div class="card-body">
+                    <form id="reportForm" method="post" action="{% url 'generate_report' %}">
+                        {% csrf_token %}
+                        
+                        <!-- Report Type Selection -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Report Type</label>
+                                <select class="form-select" name="report_type" id="reportType" required>
+                                    <option value="">Select Report Type</option>
+                                    <option value="employee">Employee-wise Report</option>
+                                    <option value="project">Project-wise Report</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Date Range</label>
+                                <select class="form-select" name="date_range" id="dateRange" required>
+                                    <option value="">Select Date Range</option>
+                                    <option value="daily">Daily</option>
+                                    <!-- <option value="monthly">Monthly</option> -->
+                                    <option value="custom">Custom Range</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Date Selection Options -->
+                        <div id="dateOptions" class="row mb-3" style="display: none;">
+                            <!-- Daily Date Selection -->
+                            <div id="dailyOptions" class="col-md-4" style="display: none;">
+                                <label class="form-label">Select Date</label>
+                                <input type="date" class="form-control" name="selected_date" id="selectedDate" value="{{ current_date|date:'Y-m-d' }}">
+                            </div>
+
+                            <!-- Monthly Selection -->
+                            <div id="monthlyOptions" class="col-md-8" style="display: none;">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Month</label>
+                                        <select class="form-select" name="selected_month" id="selectedMonth">
+                                            {% for i in "123456789012" %}
+                                                <option value="{{ forloop.counter }}" {% if forloop.counter == current_date.month %}selected{% endif %}>
+                                                    {{ forloop.counter|date:"F" }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Year</label>
+                                        <select class="form-select" name="selected_year" id="selectedYear">
+                                            {% for year in "2020 2021 2022 2023 2024 2025 2026"|make_list %}
+                                                <option value="{{ year }}" {% if year == current_date.year|stringformat:"s" %}selected{% endif %}>{{ year }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Custom Range Selection -->
+                            <div id="customOptions" class="col-md-8" style="display: none;">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Start Date</label>
+                                        <input type="date" class="form-control" name="start_date" id="startDate">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">End Date</label>
+                                        <input type="date" class="form-control" name="end_date" id="endDate">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Filter Options -->
+                        <div id="filterOptions" class="row mb-3" style="display: none;">
+                            <!-- Employee Filter -->
+                            <div id="employeeFilter" class="col-md-6" style="display: none;">
+                                <label class="form-label">Filter by Employee (Optional)</label>
+                                <select class="form-select" name="employee_id" id="employeeId">
+                                    <option value="">All Employees</option>
+                                    {% for employee in employees %}
+                                        <option value="{{ employee.id }}">{{ employee.first_name }} {{ employee.last_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Project Filter -->
+                            <div id="projectFilter" class="col-md-6" style="display: none;">
+                                <label class="form-label">Filter by Project (Optional)</label>
+                                <select class="form-select" name="project_id" id="projectId">
+                                    <option value="">All Projects</option>
+                                    {% for project in projects %}
+                                        <option value="{{ project.id }}">{{ project.project_id }} - {{ project.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="row">
+                            <div class="col-md-12">
+                                <button type="button" class="btn btn-info me-2" id="previewBtn">
+                                    <i class="fas fa-eye me-1"></i>Preview Summary
+                                </button>
+                                <button type="submit" class="btn btn-success" id="generateBtn" disabled>
+                                    <i class="fas fa-download me-1"></i>Generate Excel Report
+                                </button>
+                                <button type="button" class="btn btn-secondary" id="resetBtn">
+                                    <i class="fas fa-undo me-1"></i>Reset Form
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Report Summary Panel -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Report Summary</h5>
+                </div>
+                <div class="card-body">
+                    <div id="summaryContent">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-chart-pie fa-3x mb-3"></i>
+                            <p>Configure report settings and click "Preview Summary" to see report statistics.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-tachometer-alt me-2"></i>Quick Stats</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="stat-item">
+                                <h4 class="text-primary">{{ employees.count }}</h4>
+                                <small class="text-muted">Active Employees</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stat-item">
+                                <h4 class="text-success">{{ projects.count }}</h4>
+                                <small class="text-muted">Total Projects</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 mb-0">Generating report, please wait...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const reportType = document.getElementById('reportType');
+    const dateRange = document.getElementById('dateRange');
+    const dateOptions = document.getElementById('dateOptions');
+    const filterOptions = document.getElementById('filterOptions');
+    const generateBtn = document.getElementById('generateBtn');
+    const previewBtn = document.getElementById('previewBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const reportForm = document.getElementById('reportForm');
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+
+    // Handle report type change
+    reportType.addEventListener('change', function() {
+        const employeeFilter = document.getElementById('employeeFilter');
+        const projectFilter = document.getElementById('projectFilter');
+        
+        if (this.value === 'employee') {
+            employeeFilter.style.display = 'block';
+            projectFilter.style.display = 'none';
+            filterOptions.style.display = 'block';
+        } else if (this.value === 'project') {
+            employeeFilter.style.display = 'none';
+            projectFilter.style.display = 'block';
+            filterOptions.style.display = 'block';
+        } else {
+            filterOptions.style.display = 'none';
+        }
+        
+        validateForm();
+    });
+
+    // Handle date range change
+    dateRange.addEventListener('change', function() {
+        const dailyOptions = document.getElementById('dailyOptions');
+        const monthlyOptions = document.getElementById('monthlyOptions');
+        const customOptions = document.getElementById('customOptions');
+        
+        // Hide all options first
+        dailyOptions.style.display = 'none';
+        monthlyOptions.style.display = 'none';
+        customOptions.style.display = 'none';
+        
+        if (this.value === 'daily') {
+            dailyOptions.style.display = 'block';
+            dateOptions.style.display = 'block';
+        } else if (this.value === 'monthly') {
+            monthlyOptions.style.display = 'block';
+            dateOptions.style.display = 'block';
+        } else if (this.value === 'custom') {
+            customOptions.style.display = 'block';
+            dateOptions.style.display = 'block';
+        } else {
+            dateOptions.style.display = 'none';
+        }
+        
+        validateForm();
+    });
+
+    // Form validation
+    function validateForm() {
+        const isValid = reportType.value && dateRange.value;
+        generateBtn.disabled = !isValid;
+        previewBtn.disabled = !isValid;
+    }
+
+    // Add event listeners for form validation
+    document.querySelectorAll('select, input').forEach(element => {
+        element.addEventListener('change', validateForm);
+    });
+
+    // Preview button click
+    previewBtn.addEventListener('click', function() {
+        const formData = new FormData(reportForm);
+        
+        fetch('{% url "get_report_summary" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const summary = data.summary;
+                document.getElementById('summaryContent').innerHTML = `
+                    <div class="summary-stats">
+                        <div class="stat-item mb-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Date Range:</span>
+                                <span class="fw-bold">${summary.date_range}</span>
+                            </div>
+                        </div>
+                        <div class="stat-item mb-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Total Hours:</span>
+                                <span class="fw-bold text-primary">${summary.total_hours.toFixed(2)}</span>
+                            </div>
+                        </div>
+                        <div class="stat-item mb-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Total Entries:</span>
+                                <span class="fw-bold text-info">${summary.total_entries}</span>
+                            </div>
+                        </div>
+                        <div class="stat-item mb-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Employees:</span>
+                                <span class="fw-bold text-success">${summary.unique_employees}</span>
+                            </div>
+                        </div>
+                        <div class="stat-item mb-3">
+                            <div class="d-flex justify-content-between">
+                                <span class="text-muted">Projects:</span>
+                                <span class="fw-bold text-warning">${summary.unique_projects}</span>
+                            </div>
+                        </div>
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <small>Click "Generate Excel Report" to download the detailed report.</small>
+                        </div>
+                    </div>
+                `;
+            } else {
+                document.getElementById('summaryContent').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Error: ${data.error}
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            document.getElementById('summaryContent').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Error loading summary. Please try again.
+                </div>
+            `;
+        });
+    });
+
+    // Form submission
+    reportForm.addEventListener('submit', function(e) {
+        loadingModal.show();
+        
+        // Add a timeout to hide loading modal in case of issues
+        setTimeout(() => {
+            loadingModal.hide();
+        }, 30000); // 30 seconds timeout
+    });
+
+    // Reset form
+    resetBtn.addEventListener('click', function() {
+        reportForm.reset();
+        dateOptions.style.display = 'none';
+        filterOptions.style.display = 'none';
+        document.getElementById('summaryContent').innerHTML = `
+            <div class="text-center text-muted">
+                <i class="fas fa-chart-pie fa-3x mb-3"></i>
+                <p>Configure report settings and click "Preview Summary" to see report statistics.</p>
+            </div>
+        `;
+        validateForm();
+    });
+
+    // Set default date for daily selection
+    document.getElementById('selectedDate').value = new Date().toISOString().split('T')[0];
+    
+    // Set default start and end dates for custom range
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    document.getElementById('startDate').value = firstDay.toISOString().split('T')[0];
+    document.getElementById('endDate').value = today.toISOString().split('T')[0];
+});
+</script>
+
+<style>
+.stat-item {
+    padding: 15px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.stat-item:last-child {
+    border-bottom: none;
+}
+
+.stat-item h4 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: bold;
+}
+
+.summary-stats .stat-item {
+    padding: 10px 0;
+}
+
+.card-header {
+    font-weight: 600;
+}
+
+.btn i {
+    margin-right: 5px;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+#loadingModal .modal-content {
+    border: none;
+    box-shadow: 0 0 20px rgba(0,0,0,0.2);
+}
+
+.alert {
+    border-radius: 8px;
+}
+
+.form-select:focus,
+.form-control:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+</style>
+{% endblock %}

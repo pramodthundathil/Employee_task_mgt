@@ -258,13 +258,15 @@ class WorkEntryForm(forms.ModelForm):
         # Filter projects to show only active ones
         self.fields['project'].queryset = Project.objects.filter(status='active')
         
-        # Set work_date choices to today and yesterday only
+        # Set work_date choices to today and previous 2 days (3 days total)
         today = date.today()
-        yesterday = today - timedelta(days=1)
+        day_1 = today - timedelta(days=1)
+        day_2 = today - timedelta(days=2)
         
         date_choices = [
             (today.isoformat(), f'Today ({today.strftime("%B %d, %Y")})'),
-            (yesterday.isoformat(), f'Yesterday ({yesterday.strftime("%B %d, %Y")})'),
+            (day_1.isoformat(), f'Yesterday ({day_1.strftime("%B %d, %Y")})'),
+            (day_2.isoformat(), f'{day_2.strftime("%A, %B %d, %Y")}'),
         ]
         
         self.fields['work_date'] = forms.ChoiceField(
@@ -277,10 +279,10 @@ class WorkEntryForm(forms.ModelForm):
         if isinstance(work_date, str):
             work_date = date.fromisoformat(work_date)
         
-        # Check if date is within allowed range (today or yesterday)
+        # Check if date is within allowed range (today or previous 2 days)
         today = date.today()
         if (today - work_date).days > 2:
-            raise ValidationError("You can only add work entries for today or yesterday.")
+            raise ValidationError("You can only add work entries for today or the previous 2 days.")
         
         return work_date
 
@@ -302,3 +304,16 @@ class WorkEntryForm(forms.ModelForm):
             raise ValidationError("End time must be after start time.")
 
         return cleaned_data
+class WorkEntryFormAdmin(forms.ModelForm):
+    class Meta:
+        model = WorkEntry
+        fields = ('project','employee', 'work_date', 'start_time', 'end_time', 'working_hours', 'description')
+        widgets = {
+            'project': forms.Select(attrs={'class': 'form-control'}),
+            'employee':forms.Select(attrs={'class': 'form-control'}),
+            'work_date': forms.DateInput(attrs={'class': 'form-control', "type":"date"}),
+            'start_time': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            'end_time': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            'working_hours': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1', 'min': '0.1', 'max': '24'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
