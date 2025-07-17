@@ -202,7 +202,7 @@ def employee_management(request):
     if request.user.role != 'admin':
         return redirect('employee_dashboard')
     
-    employees = User.objects.filter(role='user').order_by('-date_joined')
+    employees = User.objects.filter(role='user').order_by('employee_id')
     form = CustomUserForm()  # For the add employee modal
     
     context = {
