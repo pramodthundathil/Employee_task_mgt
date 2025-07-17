@@ -1817,7 +1817,7 @@ def generate_employee_report(start_date, end_date, employee_id=None):
         current_row += 1
         
         # Project table headers
-        project_headers = ['Project ID', 'Project Name', 'Total Hours', 'Total Cost']
+        project_headers = ['Project ID', 'Project Name', 'Total Hours', 'Total Cost ($)']
         for col, header in enumerate(project_headers, 1):
             cell = ws.cell(row=current_row, column=col, value=header)
             cell.font = header_font
@@ -1833,7 +1833,7 @@ def generate_employee_report(start_date, end_date, employee_id=None):
             ws[f'A{current_row}'] = project.project_id
             ws[f'B{current_row}'] = project.name
             ws[f'C{current_row}'] = f"{project_data['total_hours']:.2f}"
-            ws[f'D{current_row}'] = f"${project_data['total_cost']:.2f}"
+            ws[f'D{current_row}'] = f"{project_data['total_cost']:.2f}"
             
             # Apply borders
             for col in range(1, 5):
@@ -1869,7 +1869,7 @@ def generate_employee_report(start_date, end_date, employee_id=None):
         
         # Table headers
         current_row += 1
-        headers = ['Date', 'Project', 'Start Time', 'End Time', 'Hours', 'Cost', 'Description']
+        headers = ['Date', 'Project', 'Start Time', 'End Time', 'Hours', 'Cost ($)', 'Description']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=current_row, column=col, value=header)
             cell.font = header_font
@@ -1889,7 +1889,7 @@ def generate_employee_report(start_date, end_date, employee_id=None):
             ws[f'C{current_row}'] = entry.start_time.strftime('%H:%M')
             ws[f'D{current_row}'] = entry.end_time.strftime('%H:%M')
             ws[f'E{current_row}'] = float(entry.working_hours)
-            ws[f'F{current_row}'] = f"${entry_cost:.2f}"
+            ws[f'F{current_row}'] = f"{entry_cost:.2f}"
             ws[f'G{current_row}'] = entry.description
             
             
@@ -2027,7 +2027,7 @@ def generate_project_report(start_date, end_date, project_id=None):
         current_row += 1
         
         # Employee table headers
-        employee_headers = ['Employee Name', 'Designation', 'Hourly Rate', 'Total Hours', 'Total Cost']
+        employee_headers = ['Employee Name', 'Designation', 'Hourly Rate ($)', 'Total Hours', 'Total Cost ($)']
         for col, header in enumerate(employee_headers, 1):
             cell = ws.cell(row=current_row, column=col, value=header)
             cell.font = header_font
@@ -2042,9 +2042,9 @@ def generate_project_report(start_date, end_date, project_id=None):
             employee = employee_data['employee']
             ws[f'A{current_row}'] = f"{employee.first_name} {employee.last_name or ''}"
             ws[f'B{current_row}'] = employee.designation or 'N/A'
-            ws[f'C{current_row}'] = f"${employee.man_hour_of_employee:.2f}"
+            ws[f'C{current_row}'] = f"{employee.man_hour_of_employee:.2f}"
             ws[f'D{current_row}'] = f"{employee_data['total_hours']:.2f}"
-            ws[f'E{current_row}'] = f"${employee_data['total_cost']:.2f}"
+            ws[f'E{current_row}'] = f"{employee_data['total_cost']:.2f}"
             
             # Apply borders
             for col in range(1, 6):
@@ -2078,7 +2078,7 @@ def generate_project_report(start_date, end_date, project_id=None):
         
         # Table headers
         current_row += 1
-        headers = ['Date', 'Employee', 'Start Time', 'End Time', 'Hours', 'Cost', 'Description']
+        headers = ['Date', 'Employee', 'Start Time', 'End Time', 'Hours', 'Cost ($)', 'Description']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=current_row, column=col, value=header)
             cell.font = header_font
@@ -2098,7 +2098,7 @@ def generate_project_report(start_date, end_date, project_id=None):
             ws[f'C{current_row}'] = entry.start_time.strftime('%H:%M')
             ws[f'D{current_row}'] = entry.end_time.strftime('%H:%M')
             ws[f'E{current_row}'] = float(entry.working_hours)
-            ws[f'F{current_row}'] = f"${entry_cost:.2f}"
+            ws[f'F{current_row}'] = f"{entry_cost:.2f}"
             ws[f'G{current_row}'] = entry.description
             
             # Apply borders
@@ -2229,7 +2229,7 @@ def generate_employee_single_table_report(start_date, end_date, employee_id=None
         current_row += 1
         
         # Employee table headers
-        employee_headers = ['Employee Name', 'Designation', 'Hourly Rate', 'Total Hours', 'Total Cost']
+        employee_headers = ['Employee Name', 'Designation', 'Hourly Rate ($)', 'Total Hours', 'Total Cost ($)']
         for col, header in enumerate(employee_headers, 1):
             cell = ws.cell(row=current_row, column=col, value=header)
             cell.font = header_font
@@ -2244,9 +2244,9 @@ def generate_employee_single_table_report(start_date, end_date, employee_id=None
             employee = employee_data['employee']
             ws[f'A{current_row}'] = f"{employee.first_name} {employee.last_name or ''}"
             ws[f'B{current_row}'] = employee.designation or 'N/A'
-            ws[f'C{current_row}'] = f"${employee.man_hour_of_employee:.2f}"
+            ws[f'C{current_row}'] = f"{employee.man_hour_of_employee:.2f}"
             ws[f'D{current_row}'] = f"{employee_data['total_hours']:.2f}"
-            ws[f'E{current_row}'] = f"${employee_data['total_cost']:.2f}"
+            ws[f'E{current_row}'] = f"{employee_data['total_cost']:.2f}"
             
             # Apply borders
             for col in range(1, 6):
@@ -2262,7 +2262,7 @@ def generate_employee_single_table_report(start_date, end_date, employee_id=None
     current_row += 2
     
     # Single table headers
-    headers = ['Date', 'Employee Name', 'Designation', 'Project',  'Start Time', 'End Time', 'Hours', 'Hourly Rate', 'Cost', 'Description']
+    headers = ['Date', 'Employee Name', 'Designation', 'Project',  'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=current_row, column=col, value=header)
         cell.font = header_font
@@ -2282,8 +2282,8 @@ def generate_employee_single_table_report(start_date, end_date, employee_id=None
         ws[f'E{current_row}'] = entry.start_time.strftime('%H:%M')
         ws[f'F{current_row}'] = entry.end_time.strftime('%H:%M')
         ws[f'G{current_row}'] = float(entry.working_hours)
-        ws[f'H{current_row}'] = f"${entry.employee.man_hour_of_employee:.2f}"
-        ws[f'I{current_row}'] = f"${entry_cost:.2f}"
+        ws[f'H{current_row}'] = f"{entry.employee.man_hour_of_employee:.2f}"
+        ws[f'I{current_row}'] = f"{entry_cost:.2f}"
         ws[f'J{current_row}'] = entry.description
         
         # Apply borders
@@ -2463,7 +2463,7 @@ def generate_project_single_table_report(start_date, end_date, project_id=None):
     current_row += 2
     
     # Single table headers
-    headers = [ 'Date','Project Name', 'Project ID', 'Employee', 'Designation', 'Start Time', 'End Time', 'Hours', 'Hourly Rate', 'Cost', 'Description']
+    headers = [ 'Date','Project Name', 'Project ID', 'Employee', 'Designation', 'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=current_row, column=col, value=header)
         cell.font = header_font
@@ -2484,8 +2484,8 @@ def generate_project_single_table_report(start_date, end_date, project_id=None):
         ws[f'F{current_row}'] = entry.start_time.strftime('%H:%M')
         ws[f'G{current_row}'] = entry.end_time.strftime('%H:%M')
         ws[f'H{current_row}'] = float(entry.working_hours)
-        ws[f'I{current_row}'] = f"${entry.employee.man_hour_of_employee:.2f}"
-        ws[f'J{current_row}'] = f"${entry_cost:.2f}"
+        ws[f'I{current_row}'] = f"{entry.employee.man_hour_of_employee:.2f}"
+        ws[f'J{current_row}'] = f"{entry_cost:.2f}"
         ws[f'K{current_row}'] = entry.description
         
         # Apply borders

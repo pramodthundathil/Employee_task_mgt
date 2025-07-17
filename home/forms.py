@@ -318,12 +318,12 @@ class WorkEntryForm(forms.ModelForm):
         # Set work_date choices to today and previous 2 days (3 days total)
         today = date.today()
         day_1 = today - timedelta(days=1)
-        day_2 = today - timedelta(days=2)
+        
         
         date_choices = [
             (today.isoformat(), f'Today ({today.strftime("%B %d, %Y")})'),
             (day_1.isoformat(), f'Yesterday ({day_1.strftime("%B %d, %Y")})'),
-            (day_2.isoformat(), f'{day_2.strftime("%A, %B %d, %Y")}'),
+            
         ]
         
         self.fields['work_date'] = forms.ChoiceField(
