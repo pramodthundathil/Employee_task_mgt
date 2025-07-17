@@ -1832,8 +1832,8 @@ def generate_employee_report(start_date, end_date, employee_id=None):
             project = project_data['project']
             ws[f'A{current_row}'] = project.project_id
             ws[f'B{current_row}'] = project.name
-            ws[f'C{current_row}'] = f"{project_data['total_hours']:.2f}"
-            ws[f'D{current_row}'] = f"{project_data['total_cost']:.2f}"
+            ws[f'C{current_row}'] = float(project_data['total_hours'])  # Keep as number
+            ws[f'D{current_row}'] = float(project_data['total_cost'])   # Keep as number
             
             # Apply borders
             for col in range(1, 5):
@@ -1849,7 +1849,6 @@ def generate_employee_report(start_date, end_date, employee_id=None):
         current_row += 2
     
     # Employee data section
-    
     for emp_data in employees_data.values():
         employee = emp_data['employee']
         
@@ -1888,10 +1887,9 @@ def generate_employee_report(start_date, end_date, employee_id=None):
             ws[f'B{current_row}'] = entry.project.name
             ws[f'C{current_row}'] = entry.start_time.strftime('%H:%M')
             ws[f'D{current_row}'] = entry.end_time.strftime('%H:%M')
-            ws[f'E{current_row}'] = float(entry.working_hours)
-            ws[f'F{current_row}'] = f"{entry_cost:.2f}"
+            ws[f'E{current_row}'] = float(entry.working_hours)  # Keep as number
+            ws[f'F{current_row}'] = float(entry_cost)           # Keep as number, remove f-string
             ws[f'G{current_row}'] = entry.description
-            
             
             # Apply borders
             for col in range(1, 8):  # Updated to include cost column
@@ -2042,9 +2040,9 @@ def generate_project_report(start_date, end_date, project_id=None):
             employee = employee_data['employee']
             ws[f'A{current_row}'] = f"{employee.first_name} {employee.last_name or ''}"
             ws[f'B{current_row}'] = employee.designation or 'N/A'
-            ws[f'C{current_row}'] = f"{employee.man_hour_of_employee:.2f}"
-            ws[f'D{current_row}'] = f"{employee_data['total_hours']:.2f}"
-            ws[f'E{current_row}'] = f"{employee_data['total_cost']:.2f}"
+            ws[f'C{current_row}'] = float(employee.man_hour_of_employee)  # Keep as number
+            ws[f'D{current_row}'] = float(employee_data['total_hours'])   # Keep as number
+            ws[f'E{current_row}'] = float(employee_data['total_cost'])    # Keep as number
             
             # Apply borders
             for col in range(1, 6):
@@ -2097,8 +2095,8 @@ def generate_project_report(start_date, end_date, project_id=None):
             ws[f'B{current_row}'] = f"{entry.employee.first_name} {entry.employee.last_name or ''}"
             ws[f'C{current_row}'] = entry.start_time.strftime('%H:%M')
             ws[f'D{current_row}'] = entry.end_time.strftime('%H:%M')
-            ws[f'E{current_row}'] = float(entry.working_hours)
-            ws[f'F{current_row}'] = f"{entry_cost:.2f}"
+            ws[f'E{current_row}'] = float(entry.working_hours)  # Keep as number
+            ws[f'F{current_row}'] = float(entry_cost)           # Keep as number, remove f-string
             ws[f'G{current_row}'] = entry.description
             
             # Apply borders
@@ -2244,9 +2242,9 @@ def generate_employee_single_table_report(start_date, end_date, employee_id=None
             employee = employee_data['employee']
             ws[f'A{current_row}'] = f"{employee.first_name} {employee.last_name or ''}"
             ws[f'B{current_row}'] = employee.designation or 'N/A'
-            ws[f'C{current_row}'] = f"{employee.man_hour_of_employee:.2f}"
-            ws[f'D{current_row}'] = f"{employee_data['total_hours']:.2f}"
-            ws[f'E{current_row}'] = f"{employee_data['total_cost']:.2f}"
+            ws[f'C{current_row}'] = float(employee.man_hour_of_employee)  # Keep as number
+            ws[f'D{current_row}'] = float(employee_data['total_hours'])   # Keep as number
+            ws[f'E{current_row}'] = float(employee_data['total_cost'])    # Keep as number
             
             # Apply borders
             for col in range(1, 6):
@@ -2281,9 +2279,9 @@ def generate_employee_single_table_report(start_date, end_date, employee_id=None
         ws[f'D{current_row}'] = entry.project.name  
         ws[f'E{current_row}'] = entry.start_time.strftime('%H:%M')
         ws[f'F{current_row}'] = entry.end_time.strftime('%H:%M')
-        ws[f'G{current_row}'] = float(entry.working_hours)
-        ws[f'H{current_row}'] = f"{entry.employee.man_hour_of_employee:.2f}"
-        ws[f'I{current_row}'] = f"{entry_cost:.2f}"
+        ws[f'G{current_row}'] = float(entry.working_hours)              # Keep as number
+        ws[f'H{current_row}'] = float(entry.employee.man_hour_of_employee)  # Keep as number
+        ws[f'I{current_row}'] = float(entry_cost)                      # Keep as number
         ws[f'J{current_row}'] = entry.description
         
         # Apply borders
@@ -2371,6 +2369,11 @@ def generate_project_single_table_report(start_date, end_date, project_id=None):
     border = Border(left=Side(style='thin'), right=Side(style='thin'), 
                    top=Side(style='thin'), bottom=Side(style='thin'))
     
+    # Number formatting styles
+    number_format = '#,##0.00'  # For decimal numbers with 2 decimal places
+    currency_format = '$#,##0.00'  # For currency values
+    hour_format = '#,##0.00'  # For hours
+    
     # Report header
     ws['A1'] = "Project Work Report "
     ws['A1'].font = Font(bold=True, size=16)
@@ -2444,10 +2447,20 @@ def generate_project_single_table_report(start_date, end_date, project_id=None):
         # Project data rows
         for project_data in sorted(projects_data.values(), key=lambda x: x['project'].name):
             project = project_data['project']
+            
+            # Project ID and Name as text
             ws[f'A{current_row}'] = project.project_id
             ws[f'B{current_row}'] = project.name
-            ws[f'C{current_row}'] = f"{project_data['total_hours']:.2f}"
-            ws[f'D{current_row}'] = f"${project_data['total_cost']:.2f}"
+            
+            # Total Hours as number with formatting
+            hours_cell = ws[f'C{current_row}']
+            hours_cell.value = project_data['total_hours']  # Direct number assignment
+            hours_cell.number_format = hour_format
+            
+            # Total Cost as number with currency formatting
+            cost_cell = ws[f'D{current_row}']
+            cost_cell.value = project_data['total_cost']  # Direct number assignment
+            cost_cell.number_format = currency_format
             
             # Apply borders
             for col in range(1, 5):
@@ -2463,7 +2476,7 @@ def generate_project_single_table_report(start_date, end_date, project_id=None):
     current_row += 2
     
     # Single table headers
-    headers = [ 'Date','Project Name', 'Project ID', 'Employee', 'Designation', 'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description']
+    headers = ['Date','Project Name', 'Project ID', 'Employee', 'Designation', 'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=current_row, column=col, value=header)
         cell.font = header_font
@@ -2476,6 +2489,8 @@ def generate_project_single_table_report(start_date, end_date, project_id=None):
     # Single table data rows
     for entry in work_entries:
         entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
+        
+        # Date, Project Name, Project ID, Employee, Designation as text
         ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
         ws[f'B{current_row}'] = entry.project.name
         ws[f'C{current_row}'] = entry.project.project_id
@@ -2483,9 +2498,23 @@ def generate_project_single_table_report(start_date, end_date, project_id=None):
         ws[f'E{current_row}'] = entry.employee.designation or 'N/A'
         ws[f'F{current_row}'] = entry.start_time.strftime('%H:%M')
         ws[f'G{current_row}'] = entry.end_time.strftime('%H:%M')
-        ws[f'H{current_row}'] = float(entry.working_hours)
-        ws[f'I{current_row}'] = f"{entry.employee.man_hour_of_employee:.2f}"
-        ws[f'J{current_row}'] = f"{entry_cost:.2f}"
+        
+        # Hours as number with formatting
+        hours_cell = ws[f'H{current_row}']
+        hours_cell.value = float(entry.working_hours)  # Direct number assignment
+        hours_cell.number_format = hour_format
+        
+        # Hourly Rate as number with currency formatting
+        rate_cell = ws[f'I{current_row}']
+        rate_cell.value = float(entry.employee.man_hour_of_employee)  # Direct number assignment
+        rate_cell.number_format = currency_format
+        
+        # Cost as number with currency formatting
+        cost_cell = ws[f'J{current_row}']
+        cost_cell.value = entry_cost  # Direct number assignment
+        cost_cell.number_format = currency_format
+        
+        # Description as text
         ws[f'K{current_row}'] = entry.description
         
         # Apply borders
@@ -2507,23 +2536,43 @@ def generate_project_single_table_report(start_date, end_date, project_id=None):
         total_employees = len(employees_cost)
         total_entries = len(work_entries)
         
-        ws[f'A{current_row}'] = f"Total Projects: {total_projects}"
+        # Total Projects as number
+        projects_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Total Projects:"
+        projects_cell.value = total_projects
+        projects_cell.number_format = '0'
         ws[f'A{current_row}'].font = subheader_font
         current_row += 1
         
-        ws[f'A{current_row}'] = f"Total Employees: {total_employees}"
+        # Total Employees as number
+        employees_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Total Employees:"
+        employees_cell.value = total_employees
+        employees_cell.number_format = '0'
         ws[f'A{current_row}'].font = subheader_font
         current_row += 1
         
-        ws[f'A{current_row}'] = f"Total Work Entries: {total_entries}"
+        # Total Work Entries as number
+        entries_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Total Work Entries:"
+        entries_cell.value = total_entries
+        entries_cell.number_format = '0'
         ws[f'A{current_row}'].font = subheader_font
         current_row += 1
         
-        ws[f'A{current_row}'] = f"Total Hours Worked: {total_hours_all:.2f}"
+        # Total Hours Worked as number
+        total_hours_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Total Hours Worked:"
+        total_hours_cell.value = total_hours_all
+        total_hours_cell.number_format = hour_format
         ws[f'A{current_row}'].font = subheader_font
         current_row += 1
         
-        ws[f'A{current_row}'] = f"Total Cost: ${total_report_cost:.2f}"
+        # Total Cost as number with currency formatting
+        total_cost_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Total Cost:"
+        total_cost_cell.value = total_report_cost
+        total_cost_cell.number_format = currency_format
         ws[f'A{current_row}'].font = Font(bold=True, size=12, color="FF0000")
         current_row += 1
         
@@ -2531,11 +2580,19 @@ def generate_project_single_table_report(start_date, end_date, project_id=None):
         avg_hours_per_project = total_hours_all / total_projects if total_projects > 0 else 0
         avg_cost_per_project = total_report_cost / total_projects if total_projects > 0 else 0
         
-        ws[f'A{current_row}'] = f"Average Hours per Project: {avg_hours_per_project:.2f}"
+        # Average Hours per Project as number
+        avg_hours_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Average Hours per Project:"
+        avg_hours_cell.value = avg_hours_per_project
+        avg_hours_cell.number_format = hour_format
         ws[f'A{current_row}'].font = subheader_font
         current_row += 1
         
-        ws[f'A{current_row}'] = f"Average Cost per Project: ${avg_cost_per_project:.2f}"
+        # Average Cost per Project as number
+        avg_cost_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Average Cost per Project:"
+        avg_cost_cell.value = avg_cost_per_project
+        avg_cost_cell.number_format = currency_format
         ws[f'A{current_row}'].font = subheader_font
     
     # Adjust column widths
@@ -2558,6 +2615,7 @@ def generate_project_single_table_report(start_date, end_date, project_id=None):
     
     return response
 
+    
 @login_required
 def get_report_summary(request):
     """AJAX endpoint to get report summary data"""
