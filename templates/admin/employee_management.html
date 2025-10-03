@@ -39,6 +39,7 @@
                                     <th>Profile</th>
                                     <th>Name</th>
                                     <th>Email</th>
+                                    <th>Location</th>
                                     <th>Phone</th>
                                     <th>Designation</th>
                                     <th>Role</th>
@@ -62,6 +63,7 @@
                                     </td>
                                     <td>{{ employee.first_name }} {{ employee.last_name|default:'' }}</td>
                                     <td>{{ employee.email }}</td>
+                                    <td>{{ employee.work_location|default:'-' }}</td>
                                     <td>{{ employee.phone_number|default:'-' }}</td>
                                     <td>{{ employee.designation|default:'-' }}</td>
                                     <td>
@@ -116,7 +118,7 @@
                 <h5 class="modal-title" id="addEmployeeModalLabel">Add New Employee</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="{% url 'add_employee' %}" enctype="multipart/form-data" id="addEmployeeForm">
+            <form method="post" action="{% url 'add_employee' %}" enctype="multipart/form-data" >
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="row">
@@ -128,6 +130,8 @@
                         </div>
                         {% endfor %}
                     </div>
+
+                    
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

@@ -25,13 +25,12 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-from .models import Project, WorkEntry, Task
+from .models import Project, WorkEntry, Task, WorkLocation
 from django.contrib.auth import get_user_model
 from decimal import Decimal
 from django.db.models import Case, When, Value, CharField
+
 # Admin Views
-
-
 from django.template.loader import render_to_string
 from django.views.decorators.csrf import csrf_protect
 from django.core.paginator import Paginator
@@ -70,7 +69,7 @@ def login_view(request):
         
         if user is not None and user.is_active:
             login(request, user)
-            if user.role == 'admin':
+            if user.role != 'user':
                 return redirect('admin_dashboard')
             else:
                 return redirect('employee_dashboard')
@@ -148,19 +147,46 @@ def profile_update(request):
 
 @login_required
 def admin_dashboard(request):
-    if request.user.role != 'admin':
+    # Fix: Use 'and' instead of 'or' and check if user is admin or semi-admin
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
+    # Base querysets
+    user_queryset = User.objects.filter(role='user', is_active=True)
+    project_queryset = Project.objects.all()
+    task_queryset = Task.objects.all()
+    work_entry_queryset = WorkEntry.objects.select_related('employee', 'project')
+    
+    # Apply work location filter for semi-admin
+    if request.user.role == 'semi-admin':
+        user_location = request.user.work_location
+        
+        if user_location:
+            # Filter users by work location
+            user_queryset = user_queryset.filter(work_location=user_location)
+            
+            # Filter projects by work location
+            project_queryset = project_queryset.filter(work_location=user_location)
+            
+            # Filter tasks by projects in the same location
+            task_queryset = task_queryset.filter(project__work_location=user_location)
+            
+            # Filter work entries by employees and projects in the same location
+            work_entry_queryset = work_entry_queryset.filter(
+                employee__work_location=user_location,
+                project__work_location=user_location
+            )
+    
     # Dashboard statistics
-    total_employees = User.objects.filter(role='user', is_active=True).count()
-    total_projects = Project.objects.filter(status='active').count()
-    total_tasks = Task.objects.count()
+    total_employees = user_queryset.count()
+    total_projects = project_queryset.filter(status='active').count()
+    total_tasks = task_queryset.count()
     
-    # Recent work entries
-    recent_entries = WorkEntry.objects.select_related('employee', 'project').order_by('-created_at')[:5]
+    # Recent work entries (top 5)
+    recent_entries = work_entry_queryset.order_by('-created_at')[:5]
     
-    # Active projects
-    active_projects = Project.objects.filter(status='active').order_by('-created_at')[:5]
+    # Active projects (top 5)
+    active_projects = project_queryset.filter(status='active').order_by('-created_at')[:5]
     
     context = {
         'total_employees': total_employees,
@@ -173,8 +199,7 @@ def admin_dashboard(request):
 
 @login_required
 def employee_dashboard(request):
-    if request.user.role == 'admin':
-        return redirect('admin_dashboard')
+   
     
     # Employee's active projects
     active_projects = Project.objects.filter(status='active')[:5]
@@ -194,60 +219,162 @@ def employee_dashboard(request):
 
 
 
-
-
 @login_required
 def employee_management(request):
     """Display employee management page with all employees"""
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
-    
-    employees = User.objects.filter(role='user').order_by('employee_id')
+    if request.user.role == "admin":
+        employees = CustomUser.objects.filter(role__in =['user', 'semi-admin']).order_by('employee_id')
+    else:
+        location = request.user.work_location
+        employees = CustomUser.objects.filter(role__in =['user', 'semi-admin'], work_location = location).order_by('employee_id')
     form = CustomUserForm()  # For the add employee modal
-    
+    work_locations = WorkLocation.objects.all()
     context = {
         'employees': employees,
         'form': form,
+        'work_locations': work_locations
     }
     return render(request, 'admin/employee_management.html', context)
 
-
 @login_required
 def add_employee(request):
-    """Add new employee"""
-    if request.user.role != 'admin':
+    """Add new employee - Only admin can access"""
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
     if request.method == 'POST':
         form = CustomUserForm(request.POST, request.FILES)
+        
         if form.is_valid():
-            user = form.save(commit=False)
-            user.role = 'user'
-            user.save()
-            messages.success(request, 'Employee added successfully!')
-            return redirect('employee_management')
+            try:
+                user = form.save(commit=False)
+                
+                # Additional security check for role assignment
+                if user.role in ['admin', 'semi-admin'] and request.user.role != 'admin':
+                    messages.error(request, 'You cannot assign admin or semi-admin roles')
+                    return redirect('employee_management')
+                
+                user.save()
+                messages.success(request, f'Employee {user.first_name} {user.last_name} added successfully!')
+                return redirect('employee_management')
+                
+            except Exception as e:
+                # Handle any database errors
+                error_msg = str(e)
+                if 'NOT NULL constraint failed' in error_msg:
+                    if 'work_location' in error_msg:
+                        messages.error(request, 'Work location is required')
+                    else:
+                        messages.error(request, f'Required field missing: {error_msg}')
+                else:
+                    messages.error(request, f'Error adding employee: {error_msg}')
+                
+                # Return error for AJAX requests
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'success': False,
+                        'message': str(e)
+                    })
+                
+                return redirect('employee_management')
         else:
-            # Return form errors for AJAX handling
+            # Handle form validation errors
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return JsonResponse({
                     'success': False,
                     'errors': form.errors
                 })
-            messages.error(request, 'Please correct the errors below.')
+            
+            # Collect all errors for display
+            all_errors = []
+            for field, errors in form.errors.items():
+                field_name = field.replace('_', ' ').title()
+                for error in errors:
+                    all_errors.append(f"{field_name}: {error}")
+            
+            error_message = "Please correct the following errors: " + "; ".join(all_errors)
+            messages.error(request, error_message)
+            
+            return redirect("employee_management")
     else:
+        # GET request - show empty form
         form = CustomUserForm()
+        work_locations = WorkLocation.objects.all()
     
-    return render(request, 'admin/employee_management.html', {'form': form})
-
+    context = {
+        'form': form,
+        'is_add': True,
+        "work_locations": work_locations
+    }
+    return render(request, 'admin/employee_management.html', context)
+# @login_required
+# def edit_employee(request, employee_id):
+#     """Edit existing employee"""
+#     if request.user.role not in ['admin', 'semi-admin']:
+#         messages.error(request, 'You do not have permission to edit employees')
+#         return redirect('employee_dashboard')
+    
+#     try:
+#         employee = CustomUser.objects.get(id=employee_id)
+#     except CustomUser.DoesNotExist:
+#         messages.error(request, 'Employee not found')
+#         return redirect('employee_management')
+    
+#     if request.method == 'POST':
+#         form = CustomUserForm(
+#             request.POST, 
+#             request.FILES, 
+#             instance=employee, 
+#             user=request.user, 
+#             is_edit=True
+#         )
+        
+#         if form.is_valid():
+#             try:
+#                 user = form.save(commit=False)
+                
+#                 # Security check for role changes
+#                 if user.role in ['admin', 'semi-admin'] and request.user.role != 'admin':
+#                     messages.error(request, 'You cannot assign admin or semi-admin roles')
+#                     return redirect('employee_management')
+                
+#                 user.save()
+#                 messages.success(request, f'Employee {user.first_name} {user.last_name} updated successfully!')
+#                 return redirect('employee_management')
+                
+#             except Exception as e:
+#                 messages.error(request, f'Error updating employee: {str(e)}')
+#                 return redirect('employee_management')
+#         else:
+#             # Handle validation errors
+#             all_errors = []
+#             for field, errors in form.errors.items():
+#                 field_name = field.replace('_', ' ').title()
+#                 for error in errors:
+#                     all_errors.append(f"{field_name}: {error}")
+            
+#             error_message = "Please correct the following errors: " + "; ".join(all_errors)
+#             messages.error(request, error_message)
+#     else:
+#         form = CustomUserForm(instance=employee, user=request.user, is_edit=True)
+    
+#     context = {
+#         'form': form,
+#         'employee': employee,
+#         'is_edit': True
+#     }
+#     return render(request, 'admin/employee_edit.html', context)
 
 @login_required
 @csrf_exempt
 def edit_employee(request, user_id):
     """Edit employee details"""
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
-    employee = get_object_or_404(User, id=user_id, role='user')
+    employee = get_object_or_404(User, id=user_id)
     
     if request.method == 'POST':
         form = CustomUserForm(request.POST, request.FILES, instance=employee)
@@ -291,10 +418,10 @@ def edit_employee(request, user_id):
 @login_required
 def view_employee(request, user_id):
     """View employee details"""
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
-    employee = get_object_or_404(User, id=user_id, role='user')
+    employee = get_object_or_404(User, id=user_id)
     
     # For AJAX requests, return the employee details HTML
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -310,7 +437,7 @@ def view_employee(request, user_id):
 @csrf_protect
 def toggle_employee_status(request, user_id):
     """Toggle employee active/inactive status"""
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return JsonResponse({'success': False, 'message': 'Unauthorized'})
     
     if request.method == 'POST':
@@ -589,13 +716,11 @@ def download_employee_work_excel(request, employee_id):
     return response
 
 
-
-
 @login_required
 @csrf_protect
 def delete_employee(request, user_id):
     """Delete employee"""
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return JsonResponse({'success': False, 'message': 'Unauthorized'})
     
     if request.method == 'POST':
@@ -614,7 +739,7 @@ def delete_employee(request, user_id):
 @login_required
 def employee_search(request):
     """Search employees with filters"""
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return JsonResponse({'success': False, 'message': 'Unauthorized'})
     
     query = request.GET.get('q', '')
@@ -680,20 +805,48 @@ def employee_search(request):
 
 @login_required
 def project_management(request):
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
-    projects = Project.objects.all().order_by('-created_at')
-    paginator = Paginator(projects, 10)
-    page = request.GET.get('page')
-    projects = paginator.get_page(page)
+    # Get base queryset
+    if request.user.role == 'semi-admin':
+        location = request.user.work_location
+        projects = Project.objects.filter(work_location=location)
+    else:
+        projects = Project.objects.all()
+    
+    # Apply filters from request (for AJAX/future use)
+    status_filter = request.GET.get('status', '')
+    search_query = request.GET.get('search', '')
+    
+    if status_filter:
+        projects = projects.filter(status=status_filter)
+    
+    if search_query:
+        projects = projects.filter(
+            Q(name__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+    
+    # Order by created_at
+    projects = projects.order_by('-created_at')
+    
+    # DON'T paginate - get all projects for client-side filtering
+    # If you have many projects (1000+), consider server-side filtering instead
+    all_projects = projects
+    
     form = ProjectForm()
     
-    return render(request, 'admin/project_management.html', {'projects': projects, 'form':form})
+    context = {
+        'projects': all_projects,
+        'form': form,
+    }
+    
+    return render(request, 'admin/project_management.html', context)
 
 @login_required
 def add_project(request):
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
     if request.method == 'POST':
@@ -711,7 +864,7 @@ def add_project(request):
 
 @login_required
 def edit_project(request, project_id):
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
     project = get_object_or_404(Project, id=project_id)
@@ -729,7 +882,7 @@ def edit_project(request, project_id):
 
 @login_required
 def delete_project(request, project_id):
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
     project = get_object_or_404(Project, id=project_id)
@@ -740,7 +893,7 @@ def delete_project(request, project_id):
 
 @login_required
 def project_details(request, project_id):
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
     project = get_object_or_404(Project, id=project_id)
@@ -756,7 +909,7 @@ def project_details(request, project_id):
 
 @login_required
 def close_project(request, project_id):
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
     project = get_object_or_404(Project, id=project_id)
@@ -774,11 +927,14 @@ def close_project(request, project_id):
 
 @login_required
 def work_entry_management(request):
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
-    
-    work_entries = WorkEntry.objects.select_related('employee', 'project').order_by('-work_date')
-    
+    if request.user.role == 'semi-admin':
+        location = request.user.work_location
+        work_entries = WorkEntry.objects.filter(employee__work_location = location).select_related('employee', 'project').order_by('-work_date')
+    else:
+        work_entries = WorkEntry.objects.select_related('employee', 'project').order_by('-work_date')
+
     # Filters
     employee_filter = request.GET.get('employee')
     project_filter = request.GET.get('project')
@@ -795,8 +951,15 @@ def work_entry_management(request):
     page = request.GET.get('page')
     work_entries = paginator.get_page(page)
     
-    employees = User.objects.filter(role='user', is_active=True)
-    projects = Project.objects.all()
+    if request.user.role == 'semi-admin':
+        location = request.user.work_location
+
+        employees = User.objects.filter(role='user',work_location = location, is_active=True)
+        projects = Project.objects.filter(work_location = location)
+    else:
+        
+        employees = User.objects.filter(role='user', is_active=True)
+        projects = Project.objects.all()
   
     try:
         if request.method == "POST":
@@ -825,7 +988,7 @@ def work_entry_management(request):
 
 @login_required
 def edit_work_entry(request, entry_id):
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
     work_entry = get_object_or_404(WorkEntry, id=entry_id)
@@ -871,7 +1034,7 @@ def add_work_entry_admin(request, project_id):
 
     # projects = Project.objects.filter(status = "active")
     project = get_object_or_404(Project,id = project_id)
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
     try:
@@ -922,40 +1085,76 @@ def add_work_entry_admin(request, project_id):
 # Employee Views
 @login_required
 def add_work_entry(request):
-    projects = Project.objects.filter(status = "active")
+    # Check user role
     if request.user.role != 'user':
         return redirect('admin_dashboard')
     
+    # Get active projects for this user's location
+    location = request.user.work_location
+    projects = Project.objects.filter(status="active", work_location=location)
+    
     if request.method == 'POST':
-        form = WorkEntryForm(request.POST)
+        # Pass user to form for validation
+        form = WorkEntryForm(request.POST, user=request.user)
+        
         if form.is_valid():
+            # Create work entry but don't save to database yet
             work_entry = form.save(commit=False)
             work_entry.employee = request.user
             
-            # Check if work date is within allowed range
-            today = date.today()
-            if (today - work_entry.work_date).days > 2:
-                messages.error(request, 'You can only add work entries for today or yesterday.')
-                return redirect('my_work_entries')
+            # Convert work_date if it's a string (from ChoiceField)
+            if isinstance(work_entry.work_date, str):
+                work_entry.work_date = date.fromisoformat(work_entry.work_date)
             
-            work_entry.save()
-            messages.success(request, 'Work entry added successfully!')
-            return redirect('my_work_entries')
+            try:
+                # Save to database
+                work_entry.save()
+                messages.success(request, 'Work entry added successfully!')
+                return redirect('my_work_entries')
+                
+            except Exception as e:
+                # Handle any unexpected errors during save
+                messages.error(request, f'Error saving work entry: {str(e)}')
+                return render(request, 'employee/add_work_entry.html', {
+                    'form': form,
+                    'projects': projects
+                })
         else:
-            errors = []
-            for field, error_list in form.errors.items():
-                for error in error_list:
-                    errors.append(f" {error}")
-
-
-
-            messages.info(request, " | ".join(errors))
-            return redirect('my_work_entries')
-
-    else:
-        form = WorkEntryForm()
+            # Form has validation errors
+            error_messages = []
+            
+            # Get non-field errors (from clean() method)
+            if form.non_field_errors():
+                for error in form.non_field_errors():
+                    error_messages.append(str(error))
+            
+            # Get field-specific errors
+            for field_name, error_list in form.errors.items():
+                if field_name != '__all__':  # Skip non-field errors (already added above)
+                    field_label = form.fields[field_name].label or field_name.replace('_', ' ').title()
+                    for error in error_list:
+                        error_messages.append(f"{field_label}: {error}")
+            
+            # Display errors to user
+            if error_messages:
+                for error_msg in error_messages:
+                    messages.error(request, error_msg)
+            
+            # Return form with errors (keeps user input)
+            return render(request, 'employee/add_work_entry.html', {
+                'form': form,
+                'projects': projects
+            })
     
-    return render(request, 'employee/add_work_entry.html', {'form': form, "projects":projects})
+    else:
+        # GET request - show empty form
+        form = WorkEntryForm(user=request.user)
+    
+    return render(request, 'employee/add_work_entry.html', {
+        'form': form,
+        'projects': projects
+    })
+
 
 @login_required
 def my_work_entries(request):
@@ -1029,7 +1228,7 @@ def view_work_entry(request, entry_id):
 @login_required
 def view_work_entry_admin(request, entry_id):
     """View for viewing work entry details"""
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
     try:
@@ -1600,7 +1799,7 @@ def export_all_projects_excel(request):
 
 @login_required
 def reports(request):
-    if request.user.role != 'admin':
+    if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     
     # Default date range - current month

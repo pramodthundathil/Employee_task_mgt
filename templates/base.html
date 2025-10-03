@@ -567,7 +567,7 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 {% if user.is_authenticated %}
                     <ul class="navbar-nav me-auto">
-                        {% if user.role == 'admin' %}
+                        {% if user.role == 'admin' or user.role == 'semi-admin' %}
                             <li class="nav-item">
                                 <a class="nav-link {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}" href="{% url 'admin_dashboard' %}">
                                     <i class="fas fa-tachometer-alt me-2"></i>Dashboard

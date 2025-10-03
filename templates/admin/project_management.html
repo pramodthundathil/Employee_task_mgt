@@ -520,144 +520,167 @@
     }
 </style>
 
+<!-- Add this import at the top if not already present -->
+
+
+<!-- Your existing template structure remains the same until the script section -->
+
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // Initialize counters
-        updateProjectCounts();
+document.addEventListener('DOMContentLoaded', function () {
+    // Get all project cards
+    const projectCards = document.querySelectorAll('.project-card');
+    const searchInput = document.getElementById('searchInput');
+    const statusFilter = document.getElementById('statusFilter');
+    const sortBy = document.getElementById('sortBy');
 
-        // Search functionality
-        const searchInput = document.getElementById('searchInput');
-        const statusFilter = document.getElementById('statusFilter');
-        const sortBy = document.getElementById('sortBy');
-        const projectCards = document.querySelectorAll('.project-card');
+    // Initialize counters on page load
+    updateProjectCounts();
 
-        // Search input handler
-        searchInput.addEventListener('input', function () {
-            filterProjects();
-        });
+    // Search functionality
+    searchInput.addEventListener('input', function () {
+        filterProjects();
+    });
 
-        // Status filter handler
-        statusFilter.addEventListener('change', function () {
-            filterProjects();
-        });
+    // Status filter handler
+    statusFilter.addEventListener('change', function () {
+        filterProjects();
+    });
 
-        // Sort handler
-        sortBy.addEventListener('change', function () {
-            sortProjects();
-        });
+    // Sort handler
+    sortBy.addEventListener('change', function () {
+        sortProjects();
+    });
 
-        // View toggle
-        // Recommended approach using CSS classes
-        const toggleViewBtn = document.getElementById('toggleView');
+    // View toggle (if needed - currently commented out in your template)
+    const toggleViewBtn = document.getElementById('toggleView');
+    if (toggleViewBtn) {
         const cardView = document.getElementById('cardView');
         const tableView = document.getElementById('tableView');
 
         toggleViewBtn.addEventListener('click', function () {
-            // Toggle visibility
             cardView.classList.toggle('d-none');
             tableView.classList.toggle('d-none');
 
-            // Update button text based on current state
             if (cardView.classList.contains('d-none')) {
-                // Table view is now active
                 toggleViewBtn.innerHTML = '<i class="fas fa-th-large me-2"></i>Card View';
             } else {
-                // Card view is now active
                 toggleViewBtn.innerHTML = '<i class="fas fa-table me-2"></i>Table View';
             }
         });
+    }
 
-        // Alternative - Direct style manipulation (if you prefer the original approach)
-        const toggleViewBtn2 = document.getElementById('toggleView');
-        const cardView2 = document.getElementById('cardView');
-        const tableView2 = document.getElementById('tableView');
+    function filterProjects() {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        const statusValue = statusFilter.value.toLowerCase();
+        let visibleCount = 0;
+        let activeVisibleCount = 0;
 
-        toggleViewBtn2.addEventListener('click', function () {
-            const isCurrentlyCardView = cardView2.style.display !== 'none';
+        projectCards.forEach(card => {
+            const name = card.dataset.name || '';
+            const status = card.dataset.status || '';
+            
+            // Get card text content for more comprehensive search
+            const cardText = card.textContent.toLowerCase();
 
-            if (isCurrentlyCardView) {
-                // Switch to table view
-                cardView2.style.display = 'none';
-                tableView2.style.display = 'block';
-                toggleViewBtn2.innerHTML = '<i class="fas fa-th-large me-2"></i>Card View';
+            // Check search match (search in name and description)
+            const matchesSearch = searchTerm === '' || 
+                                name.includes(searchTerm) || 
+                                cardText.includes(searchTerm);
+            
+            // Check status match
+            const matchesStatus = statusValue === '' || status === statusValue;
+
+            // Show/hide card based on filters
+            if (matchesSearch && matchesStatus) {
+                card.style.display = '';
+                visibleCount++;
+                if (status === 'active') {
+                    activeVisibleCount++;
+                }
             } else {
-                // Switch to card view
-                cardView2.style.display = 'block';
-                tableView2.style.display = 'none';
-                toggleViewBtn2.innerHTML = '<i class="fas fa-table me-2"></i>Table View';
+                card.style.display = 'none';
             }
         });
-        function filterProjects() {
-            const searchTerm = searchInput.value.toLowerCase();
-            const statusValue = statusFilter.value;
-            let visibleCount = 0;
 
-            projectCards.forEach(card => {
-                const name = card.dataset.name;
-                const status = card.dataset.status;
+        // Update counts to reflect filtered results
+        document.getElementById('totalCount').textContent = visibleCount;
+        document.getElementById('activeCount').textContent = activeVisibleCount;
 
-                const matchesSearch = name.includes(searchTerm);
-                const matchesStatus = statusValue === '' || status === statusValue;
+        // Handle empty state
+        handleEmptyState(visibleCount);
+    }
 
-                if (matchesSearch && matchesStatus) {
-                    card.style.display = 'block';
-                    visibleCount++;
-                } else {
-                    card.style.display = 'none';
-                }
-            });
+    function sortProjects() {
+        const sortValue = sortBy.value;
+        const container = document.getElementById('cardView');
+        const cards = Array.from(projectCards);
 
-            // Show/hide empty state
-            const emptyState = document.querySelector('.empty-state');
-            if (visibleCount === 0 && projectCards.length > 0) {
-                if (!emptyState) {
-                    showEmptySearchState();
-                }
-            } else if (emptyState) {
-                emptyState.remove();
+        cards.sort((a, b) => {
+            if (sortValue === 'name') {
+                return a.dataset.name.localeCompare(b.dataset.name);
+            } else if (sortValue === 'status') {
+                return a.dataset.status.localeCompare(b.dataset.status);
+            } else if (sortValue === 'created_at') {
+                // Sort by date (newest first)
+                return new Date(b.dataset.created) - new Date(a.dataset.created);
             }
+            return 0;
+        });
+
+        // Re-append sorted cards
+        cards.forEach(card => {
+            container.appendChild(card);
+        });
+    }
+
+    function updateProjectCounts() {
+        const totalProjects = projectCards.length;
+        let activeProjects = 0;
+
+        projectCards.forEach(card => {
+            if (card.dataset.status === 'active') {
+                activeProjects++;
+            }
+        });
+
+        document.getElementById('totalCount').textContent = totalProjects;
+        document.getElementById('activeCount').textContent = activeProjects;
+    }
+
+    function handleEmptyState(visibleCount) {
+        const cardView = document.getElementById('cardView');
+        const existingEmptyState = cardView.querySelector('.empty-search-state');
+
+        if (visibleCount === 0 && projectCards.length > 0) {
+            // Show empty search state if not already showing
+            if (!existingEmptyState) {
+                const emptyState = document.createElement('div');
+                emptyState.className = 'col-12 empty-search-state';
+                emptyState.innerHTML = `
+                    <div class="empty-state text-center py-5">
+                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                        <h4>No Projects Found</h4>
+                        <p class="text-muted">Try adjusting your search criteria or filters</p>
+                        <button type="button" class="btn btn-outline-primary" onclick="clearFilters()">
+                            <i class="fas fa-times me-2"></i>Clear Filters
+                        </button>
+                    </div>
+                `;
+                cardView.appendChild(emptyState);
+            }
+        } else if (existingEmptyState) {
+            // Remove empty state if projects are visible
+            existingEmptyState.remove();
         }
+    }
 
-        function sortProjects() {
-            const sortValue = sortBy.value;
-            const container = document.getElementById('cardView');
-            const cards = Array.from(projectCards);
-
-            cards.sort((a, b) => {
-                if (sortValue === 'name') {
-                    return a.dataset.name.localeCompare(b.dataset.name);
-                } else if (sortValue === 'status') {
-                    return a.dataset.status.localeCompare(b.dataset.status);
-                } else if (sortValue === 'created_at') {
-                    return new Date(b.dataset.created) - new Date(a.dataset.created);
-                }
-                return 0;
-            });
-
-            // Re-append sorted cards
-            cards.forEach(card => container.appendChild(card));
-        }
-
-        function updateProjectCounts() {
-            const totalProjects = projectCards.length;
-            const activeProjects = document.querySelectorAll('.project-card[data-status="active"]').length;
-
-            document.getElementById('totalCount').textContent = totalProjects;
-            document.getElementById('activeCount').textContent = activeProjects;
-        }
-
-        function showEmptySearchState() {
-            const emptyState = document.createElement('div');
-            emptyState.className = 'col-12 empty-state';
-            emptyState.innerHTML = `
-            <div class="text-center py-5">
-                <i class="fas fa-search fa-3x text-muted mb-3"></i>
-                <h4>No Projects Found</h4>
-                <p class="text-muted">Try adjusting your search criteria</p>
-            </div>
-        `;
-            document.getElementById('cardView').appendChild(emptyState);
-        }
-    });
+    // Global function to clear filters
+    window.clearFilters = function() {
+        searchInput.value = '';
+        statusFilter.value = '';
+        sortBy.value = 'created_at';
+        filterProjects();
+    };
+});
 </script>
 {% endblock %}

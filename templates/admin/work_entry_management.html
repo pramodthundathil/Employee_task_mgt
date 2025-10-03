@@ -63,7 +63,7 @@
                             <option value="">All Projects</option>
                             {% for project in projects %}
                             <option value="{{ project.id }}" {% if request.GET.project == project.id|stringformat:"s" %}selected{% endif %}>
-                                {{ project.name }}
+                                {{ project }}
                             </option>
                             {% endfor %}
                         </select>
