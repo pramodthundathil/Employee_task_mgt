@@ -295,3 +295,6 @@ class WorkEntry(models.Model):
         # Don't call full_clean here as it causes the RelatedObjectDoesNotExist error
         # The form already validates everything we need
         super().save(*args, **kwargs)
+
+
+
