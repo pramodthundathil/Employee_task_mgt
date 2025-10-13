@@ -130,11 +130,45 @@ class CustomUserForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        # Extract the current user from kwargs
+        self.current_user = kwargs.pop('current_user', None)
         super().__init__(*args, **kwargs)
+        
         # Make work_location required in the form
         self.fields['work_location'].required = True
         self.fields['work_location'].queryset = WorkLocation.objects.all()
         self.fields['work_location'].empty_label = "Select Work Location"
+        
+        # If the current user is a semi-admin
+        if self.current_user and self.current_user.role == 'semi-admin':
+            # Hide the role field and set it to 'user'
+            self.fields['role'].widget = forms.HiddenInput()
+            self.fields['role'].initial = 'user'
+            
+            # Hide the work_location field and set it to the semi-admin's location
+            self.fields['work_location'].widget = forms.HiddenInput()
+            self.fields['work_location'].initial = self.current_user.work_location
+            self.fields['work_location'].required = True
+
+    def clean_role(self):
+        """Ensure semi-admins can only create 'user' role accounts."""
+        role = self.cleaned_data.get('role')
+        
+        if self.current_user and self.current_user.role == 'semi-admin':
+            # Force role to 'user' for semi-admin created accounts
+            return 'user'
+        
+        return role
+
+    def clean_work_location(self):
+        """Ensure semi-admins can only assign their own work location."""
+        work_location = self.cleaned_data.get('work_location')
+        
+        if self.current_user and self.current_user.role == 'semi-admin':
+            # Force work_location to semi-admin's location
+            return self.current_user.work_location
+        
+        return work_location
 
     def clean_password2(self):
         """Validate that the two password entries match."""
@@ -169,6 +203,7 @@ class CustomUserForm(forms.ModelForm):
             user.save()
         
         return user
+
 # from django import forms
 # from django.core.exceptions import ValidationError
 # from .models import CustomUser, WorkLocation
@@ -502,18 +537,45 @@ from .models import User, Project, Task, WorkEntry
 class ProjectForm(forms.ModelForm):
     class Meta:
         model = Project
-        fields = ('name','project_id', 'description','work_location', 'start_date', 'end_date')
+        fields = ('name', 'project_id', 'description', 'work_location', 'start_date', 'end_date')
         widgets = {
-            'name': forms.TextInput(attrs={'class': 'form-control', "placeholder":"Project Title"}),
-            'project_id': forms.TextInput(attrs={'class': 'form-control', "placeholder":"Project Id"}),
-            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3,"placeholder":"Enter Project Description"}),
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Project Title'}),
+            'project_id': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Project Id'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Enter Project Description'}),
             'start_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'end_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-             'work_location': forms.Select(attrs={
-                'class' :'form-control',
+            'work_location': forms.Select(attrs={
+                'class': 'form-control',
                 'id': 'work_location'
             }),
         }
+
+    def __init__(self, *args, **kwargs):
+        # Extract the current user from kwargs
+        self.current_user = kwargs.pop('current_user', None)
+        super().__init__(*args, **kwargs)
+        
+        # Make work_location required
+        self.fields['work_location'].required = True
+        self.fields['work_location'].queryset = WorkLocation.objects.all()
+        self.fields['work_location'].empty_label = "Select Work Location"
+        
+        # If the current user is a semi-admin
+        if self.current_user and self.current_user.role == 'semi-admin':
+            # Hide the work_location field and set it to the semi-admin's location
+            self.fields['work_location'].widget = forms.HiddenInput()
+            self.fields['work_location'].initial = self.current_user.work_location
+            self.fields['work_location'].required = True
+
+    def clean_work_location(self):
+        """Ensure semi-admins can only assign their own work location."""
+        work_location = self.cleaned_data.get('work_location')
+        
+        if self.current_user and self.current_user.role == 'semi-admin':
+            # Force work_location to semi-admin's location
+            return self.current_user.work_location
+        
+        return work_location
 
     def clean(self):
         cleaned_data = super().clean()
@@ -827,6 +889,8 @@ class WorkEntryFormAdmin(forms.ModelForm):
             }),
         }
         labels = {
+            'employee': 'Employee',
+            'project': 'Project',
             'work_date': 'Work Date',
             'start_time': 'Start Time',
             'end_time': 'End Time',
@@ -835,28 +899,28 @@ class WorkEntryFormAdmin(forms.ModelForm):
         }
     
     def __init__(self, *args, **kwargs):
-        self.user = kwargs.pop('user', None)
-        self.location = kwargs.pop('location', None)
-        super().__init__(*args, **kwargs)
+        # Extract current user from kwargs BEFORE calling super().__init__
+        self.current_user = kwargs.pop('current_user', None)
+        super(WorkEntryFormAdmin, self).__init__(*args, **kwargs)
         
-        # Filter employees based on user role and location
-        if self.user:
-            if self.user.role == 'semi-admin' and self.location:
+        # Filter employees and projects based on user role
+        if self.current_user:
+            if self.current_user.role == 'semi-admin':
                 # Semi-admin sees only employees from their location
-                self.fields['employee'].queryset = User.objects.filter(
+                self.fields['employee'].queryset = CustomUser.objects.filter(
                     role='user',
                     is_active=True,
-                    work_location=self.location
+                    work_location=self.current_user.work_location
                 ).order_by('first_name', 'last_name')
                 
                 # Semi-admin sees only projects from their location
                 self.fields['project'].queryset = Project.objects.filter(
                     status='active',
-                    work_location=self.location
+                    work_location=self.current_user.work_location
                 ).order_by('name')
             else:
                 # Admin sees all active employees and projects
-                self.fields['employee'].queryset = User.objects.filter(
+                self.fields['employee'].queryset = CustomUser.objects.filter(
                     role='user',
                     is_active=True
                 ).order_by('first_name', 'last_name')
@@ -864,35 +928,78 @@ class WorkEntryFormAdmin(forms.ModelForm):
                 self.fields['project'].queryset = Project.objects.filter(
                     status='active'
                 ).order_by('name')
+        else:
+            # Default: show all active employees and projects
+            self.fields['employee'].queryset = CustomUser.objects.filter(
+                role='user',
+                is_active=True
+            ).order_by('first_name', 'last_name')
+            
+            self.fields['project'].queryset = Project.objects.filter(
+                status='active'
+            ).order_by('name')
         
         # Set empty labels
         self.fields['employee'].empty_label = "Select Employee"
         self.fields['project'].empty_label = "Select Project"
     
+    def clean_employee(self):
+        """Validate employee selection for semi-admin"""
+        employee = self.cleaned_data.get('employee')
+        
+        if self.current_user and self.current_user.role == 'semi-admin':
+            if employee and employee.work_location != self.current_user.work_location:
+                raise ValidationError(
+                    f"You can only assign work entries to employees in your location ({self.current_user.work_location})"
+                )
+        
+        return employee
+    
+    def clean_project(self):
+        """Validate project selection for semi-admin"""
+        project = self.cleaned_data.get('project')
+        
+        if self.current_user and self.current_user.role == 'semi-admin':
+            if project and project.work_location != self.current_user.work_location:
+                raise ValidationError(
+                    f"You can only assign work entries to projects in your location ({self.current_user.work_location})"
+                )
+        
+        return project
+    
     def clean(self):
         """Validate form data"""
         cleaned_data = super().clean()
-        employee = cleaned_data.get('employee')
-        project = cleaned_data.get('project')
         start_time = cleaned_data.get('start_time')
         end_time = cleaned_data.get('end_time')
+        work_date = cleaned_data.get('work_date')
+        employee = cleaned_data.get('employee')
         
         # Validate start and end time
         if start_time and end_time:
             if start_time >= end_time:
                 raise ValidationError("End time must be after start time")
         
-        # Validate location matching for semi-admin
-        if self.user and self.user.role == 'semi-admin' and self.location:
-            if employee and employee.work_location != self.location:
-                raise ValidationError(
-                    f"Employee must be from {self.location.get_location_display()} location"
-                )
+        # Validate work_date is not in the future
+        if work_date:
+            from datetime import date
+            if work_date > date.today():
+                raise ValidationError("Work date cannot be in the future")
+        
+        # Check for overlapping work entries on the same date for the same employee
+        if employee and work_date and start_time and end_time:
+            overlapping_entries = WorkEntry.objects.filter(
+                employee=employee,
+                work_date=work_date
+            ).exclude(pk=self.instance.pk if self.instance.pk else None)
             
-            if project and project.work_location != self.location:
-                raise ValidationError(
-                    f"Project must be from {self.location.get_location_display()} location"
-                )
+            for entry in overlapping_entries:
+                # Check if time ranges overlap
+                if not (end_time <= entry.start_time or start_time >= entry.end_time):
+                    raise ValidationError(
+                        f"This employee already has a work entry from {entry.start_time.strftime('%H:%M')} "
+                        f"to {entry.end_time.strftime('%H:%M')} on this date."
+                    )
         
         return cleaned_data
     
@@ -901,8 +1008,10 @@ class WorkEntryFormAdmin(forms.ModelForm):
         instance = super().save(commit=False)
         
         # Set updated_by if user is available
-        if self.user:
-            instance.updated_by = self.user
+        if self.current_user:
+            if not instance.pk:  # New entry
+                instance.created_by = self.current_user
+            instance.updated_by = self.current_user
         
         if commit:
             instance.save()

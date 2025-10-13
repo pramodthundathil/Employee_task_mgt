@@ -24,7 +24,7 @@ urlpatterns = [
     path('employee/<int:user_id>/toggle-status/', views.toggle_employee_status, name='toggle_employee_status'),
     path('employee/<int:user_id>/delete/', views.delete_employee, name='delete_employee'),
     path('employees/search/', views.employee_search, name='employee_search'),
-     path('employee/<int:employee_id>/work-entries/', views.employee_work_entries, name='employee_work_entries'),
+    path('employee/<int:employee_id>/work-entries/', views.employee_work_entries, name='employee_work_entries'),
     path('employee/<int:employee_id>/work-entries/download/', views.download_employee_work_excel, name='download_employee_work_excel'),
     
 
@@ -39,6 +39,7 @@ urlpatterns = [
     # Work Entry Management (Admin)
     path('work-entries/', views.work_entry_management, name='work_entry_management'),
     path('work-entries/<int:entry_id>/edit/', views.edit_work_entry, name='edit_work_entry'),
+    path('work-entries/<int:entry_id>/delete/', views.delete_work_entry, name='delete_work_entry'),
     path('view/<int:entry_id>/work-entry',views.view_work_entry_admin,name="view_work_entry_admin"),
     path("work-entry-admin/<int:project_id>/add", views.add_work_entry_admin, name='add_work_entry_admin'),
     # Reports (Admin)

@@ -28,9 +28,9 @@
                     <p class="text-muted">Manage and track all your projects</p>
                 </div>
                 <div class="d-flex gap-2">
-                    <!-- <button type="button" class="btn btn-outline-primary" id="toggleView">
+                    <button type="button" class="btn btn-outline-primary" id="toggleView">
                         <i class="fas fa-th-large me-2"></i>Card View
-                    </button> -->
+                    </button>
                     <button type="button" class="btn btn-primary" data-bs-toggle="modal"
                         data-bs-target="#addProjectModal">
                         <i class="fas fa-plus me-2"></i>Add Project
@@ -79,11 +79,91 @@
         </div>
     </div>
 
-    <!-- Card View (Default) -->
-    <div id="cardView" class="row">
+    <!-- Table View (Default/Initial View) -->
+    <div id="tableView" class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle" id="projectsTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Start Date</th>
+                                    <th>End Date</th>
+                                    <th>Status</th>
+                                    <th>Created At</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody">
+                                {% for project in projects %}
+                                <tr class="project-row" data-status="{{ project.status|lower }}"
+                                    data-name="{{ project.name|lower }}" data-created="{{ project.created_at|date:'Y-m-d' }}"
+                                    data-description="{{ project.description|lower }}">
+                                    <td><span class="badge bg-light text-dark">#{{ project.project_id }}</span></td>
+                                    <td>
+                                        <div class="fw-medium">{{ project.name }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="text-muted">{{ project.description|truncatewords:10 }}</span>
+                                    </td>
+                                    <td>{{ project.start_date|date:"M d, Y" }}</td>
+                                    <td>{{ project.end_date|date:"M d, Y"|default:"-" }}</td>
+                                    <td>
+                                        {% if project.status == 'active' %}
+                                        <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Closed</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ project.created_at|date:"M d, Y H:i" }}</td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{% url 'project_details' project.id %}"
+                                                class="btn btn-sm btn-outline-primary" title="View Details">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{% url 'edit_project' project.id %}"
+                                                class="btn btn-sm btn-outline-warning" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="{% url 'delete_project' project.id %}"
+                                                class="btn btn-sm btn-outline-danger" 
+                                                onclick="return confirm('Are you sure you want to delete this project?')" title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr class="no-projects-row">
+                                    <td colspan="8" class="text-center py-5">
+                                        <i class="fas fa-project-diagram fa-3x text-muted mb-3"></i>
+                                        <h4>No Projects Found</h4>
+                                        <p class="text-muted">Get started by creating your first project</p>
+                                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProjectModal">
+                                            <i class="fas fa-plus me-2"></i>Add Project
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card View (Hidden by default) -->
+    <div id="cardView" class="row d-none">
         {% for project in projects %}
         <div class="col-xl-4 col-lg-6 col-md-6 mb-4 project-card" data-status="{{ project.status|lower }}"
-            data-name="{{ project.name|lower }}" data-created="{{ project.created_at|date:'Y-m-d' }}">
+            data-name="{{ project.name|lower }}" data-created="{{ project.created_at|date:'Y-m-d' }}"
+            data-description="{{ project.description|lower }}">
             <div class="card project-item h-100 border-0 shadow-sm">
                 <div class="card-header bg-transparent border-0 pb-0">
                     <div class="d-flex justify-content-between align-items-start">
@@ -143,19 +223,6 @@
                         </div>
                     </div>
 
-                    <!-- Project Progress (if you have progress field) -->
-                    {% comment %}
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <small class="text-muted">Progress</small>
-                            <small class="text-muted">{{ project.progress|default:"0" }}%</small>
-                        </div>
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar" role="progressbar" style="width: {{ project.progress|default:'0' }}%"></div>
-                        </div>
-                    </div>
-                    {% endcomment %}
-
                     <div class="project-actions">
                         <div class="row g-2">
                             <div class="col-6">
@@ -169,8 +236,6 @@
                                     class="btn btn-outline-info btn-sm w-100">
                                     <i class="fas fa-users me-1"></i>Team
                                 </a>
-
-
                             </div>
                         </div>
                         <div class="row g-2 mt-1">
@@ -214,72 +279,6 @@
             </div>
         </div>
         {% endfor %}
-    </div>
-
-    <!-- Table View (Hidden by default) -->
-    <!-- Table View (Hidden by default) -->
-    <div id="tableView" class="row d-none">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle" id="projectsTable">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Name</th>
-                                    <th>Description</th>
-                                    <th>Start Date</th>
-                                    <th>End Date</th>
-                                    <th>Status</th>
-                                    <th>Created At</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for project in projects %}
-                                <tr>
-                                    <td><span class="badge bg-light text-dark">#{{ project.id }}</span></td>
-                                    <td>
-                                        <div class="fw-medium">{{ project.name }}</div>
-                                    </td>
-                                    <td>
-                                        <span class="text-muted">{{ project.description|truncatewords:10 }}</span>
-                                    </td>
-                                    <td>{{ project.start_date|date:"M d, Y" }}</td>
-                                    <td>{{ project.end_date|date:"M d, Y"|default:"-" }}</td>
-                                    <td>
-                                        {% if project.status == 'active' %}
-                                        <span class="badge bg-success">Active</span>
-                                        {% else %}
-                                        <span class="badge bg-secondary">Closed</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ project.created_at|date:"M d, Y H:i" }}</td>
-                                    <td>
-                                        <div class="btn-group" role="group">
-                                            <a href="{% url 'project_details' project.id %}"
-                                                class="btn btn-sm btn-outline-primary">
-                                                <i class="fas fa-eye"></i>
-                                            </a>
-                                            <a href="{% url 'edit_project' project.id %}"
-                                                class="btn btn-sm btn-outline-warning">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
-                                            <a href="{% url 'delete_project' project.id %}"
-                                                class="btn btn-sm btn-outline-danger">
-                                                <i class="fas fa-trash"></i>
-                                            </a>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -520,18 +519,21 @@
     }
 </style>
 
-<!-- Add this import at the top if not already present -->
-
-
-<!-- Your existing template structure remains the same until the script section -->
-
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // Get all project cards
+    // Get all project items (both card and table)
     const projectCards = document.querySelectorAll('.project-card');
+    const projectRows = document.querySelectorAll('.project-row');
     const searchInput = document.getElementById('searchInput');
     const statusFilter = document.getElementById('statusFilter');
     const sortBy = document.getElementById('sortBy');
+    
+    // View elements
+    const toggleViewBtn = document.getElementById('toggleView');
+    const cardView = document.getElementById('cardView');
+    const tableView = document.getElementById('tableView');
+    
+    let currentView = 'table'; // Start with table view
 
     // Initialize counters on page load
     updateProjectCounts();
@@ -551,23 +553,25 @@ document.addEventListener('DOMContentLoaded', function () {
         sortProjects();
     });
 
-    // View toggle (if needed - currently commented out in your template)
-    const toggleViewBtn = document.getElementById('toggleView');
-    if (toggleViewBtn) {
-        const cardView = document.getElementById('cardView');
-        const tableView = document.getElementById('tableView');
-
-        toggleViewBtn.addEventListener('click', function () {
-            cardView.classList.toggle('d-none');
-            tableView.classList.toggle('d-none');
-
-            if (cardView.classList.contains('d-none')) {
-                toggleViewBtn.innerHTML = '<i class="fas fa-th-large me-2"></i>Card View';
-            } else {
-                toggleViewBtn.innerHTML = '<i class="fas fa-table me-2"></i>Table View';
-            }
-        });
-    }
+    // View toggle handler
+    toggleViewBtn.addEventListener('click', function () {
+        if (currentView === 'table') {
+            // Switch to card view
+            tableView.classList.add('d-none');
+            cardView.classList.remove('d-none');
+            toggleViewBtn.innerHTML = '<i class="fas fa-table me-2"></i>Table View';
+            currentView = 'card';
+        } else {
+            // Switch to table view
+            cardView.classList.add('d-none');
+            tableView.classList.remove('d-none');
+            toggleViewBtn.innerHTML = '<i class="fas fa-th-large me-2"></i>Card View';
+            currentView = 'table';
+        }
+        
+        // Re-apply filters after view change
+        filterProjects();
+    });
 
     function filterProjects() {
         const searchTerm = searchInput.value.toLowerCase().trim();
@@ -575,62 +579,109 @@ document.addEventListener('DOMContentLoaded', function () {
         let visibleCount = 0;
         let activeVisibleCount = 0;
 
-        projectCards.forEach(card => {
-            const name = card.dataset.name || '';
-            const status = card.dataset.status || '';
-            
-            // Get card text content for more comprehensive search
-            const cardText = card.textContent.toLowerCase();
+        if (currentView === 'card') {
+            // Filter card view
+            projectCards.forEach(card => {
+                const name = card.dataset.name || '';
+                const status = card.dataset.status || '';
+                const description = card.dataset.description || '';
+                const cardText = card.textContent.toLowerCase();
 
-            // Check search match (search in name and description)
-            const matchesSearch = searchTerm === '' || 
-                                name.includes(searchTerm) || 
-                                cardText.includes(searchTerm);
-            
-            // Check status match
-            const matchesStatus = statusValue === '' || status === statusValue;
+                const matchesSearch = searchTerm === '' || 
+                                    name.includes(searchTerm) || 
+                                    description.includes(searchTerm) ||
+                                    cardText.includes(searchTerm);
+                
+                const matchesStatus = statusValue === '' || status === statusValue;
 
-            // Show/hide card based on filters
-            if (matchesSearch && matchesStatus) {
-                card.style.display = '';
-                visibleCount++;
-                if (status === 'active') {
-                    activeVisibleCount++;
+                if (matchesSearch && matchesStatus) {
+                    card.style.display = '';
+                    visibleCount++;
+                    if (status === 'active') {
+                        activeVisibleCount++;
+                    }
+                } else {
+                    card.style.display = 'none';
                 }
-            } else {
-                card.style.display = 'none';
-            }
-        });
+            });
+
+            handleEmptyState(visibleCount, 'card');
+        } else {
+            // Filter table view
+            projectRows.forEach(row => {
+                const name = row.dataset.name || '';
+                const status = row.dataset.status || '';
+                const description = row.dataset.description || '';
+                const rowText = row.textContent.toLowerCase();
+
+                const matchesSearch = searchTerm === '' || 
+                                    name.includes(searchTerm) || 
+                                    description.includes(searchTerm) ||
+                                    rowText.includes(searchTerm);
+                
+                const matchesStatus = statusValue === '' || status === statusValue;
+
+                if (matchesSearch && matchesStatus) {
+                    row.style.display = '';
+                    visibleCount++;
+                    if (status === 'active') {
+                        activeVisibleCount++;
+                    }
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            handleEmptyState(visibleCount, 'table');
+        }
 
         // Update counts to reflect filtered results
         document.getElementById('totalCount').textContent = visibleCount;
         document.getElementById('activeCount').textContent = activeVisibleCount;
-
-        // Handle empty state
-        handleEmptyState(visibleCount);
     }
 
     function sortProjects() {
         const sortValue = sortBy.value;
-        const container = document.getElementById('cardView');
-        const cards = Array.from(projectCards);
 
-        cards.sort((a, b) => {
-            if (sortValue === 'name') {
-                return a.dataset.name.localeCompare(b.dataset.name);
-            } else if (sortValue === 'status') {
-                return a.dataset.status.localeCompare(b.dataset.status);
-            } else if (sortValue === 'created_at') {
-                // Sort by date (newest first)
-                return new Date(b.dataset.created) - new Date(a.dataset.created);
-            }
-            return 0;
-        });
+        if (currentView === 'card') {
+            // Sort cards
+            const container = document.getElementById('cardView');
+            const cards = Array.from(projectCards);
 
-        // Re-append sorted cards
-        cards.forEach(card => {
-            container.appendChild(card);
-        });
+            cards.sort((a, b) => {
+                if (sortValue === 'name') {
+                    return a.dataset.name.localeCompare(b.dataset.name);
+                } else if (sortValue === 'status') {
+                    return a.dataset.status.localeCompare(b.dataset.status);
+                } else if (sortValue === 'created_at') {
+                    return new Date(b.dataset.created) - new Date(a.dataset.created);
+                }
+                return 0;
+            });
+
+            cards.forEach(card => {
+                container.appendChild(card);
+            });
+        } else {
+            // Sort table rows
+            const tbody = document.getElementById('tableBody');
+            const rows = Array.from(projectRows);
+
+            rows.sort((a, b) => {
+                if (sortValue === 'name') {
+                    return a.dataset.name.localeCompare(b.dataset.name);
+                } else if (sortValue === 'status') {
+                    return a.dataset.status.localeCompare(b.dataset.status);
+                } else if (sortValue === 'created_at') {
+                    return new Date(b.dataset.created) - new Date(a.dataset.created);
+                }
+                return 0;
+            });
+
+            rows.forEach(row => {
+                tbody.appendChild(row);
+            });
+        }
     }
 
     function updateProjectCounts() {
@@ -647,30 +698,53 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('activeCount').textContent = activeProjects;
     }
 
-    function handleEmptyState(visibleCount) {
-        const cardView = document.getElementById('cardView');
-        const existingEmptyState = cardView.querySelector('.empty-search-state');
+    function handleEmptyState(visibleCount, view) {
+        if (view === 'card') {
+            const cardView = document.getElementById('cardView');
+            const existingEmptyState = cardView.querySelector('.empty-search-state');
 
-        if (visibleCount === 0 && projectCards.length > 0) {
-            // Show empty search state if not already showing
-            if (!existingEmptyState) {
-                const emptyState = document.createElement('div');
-                emptyState.className = 'col-12 empty-search-state';
-                emptyState.innerHTML = `
-                    <div class="empty-state text-center py-5">
-                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
-                        <h4>No Projects Found</h4>
-                        <p class="text-muted">Try adjusting your search criteria or filters</p>
-                        <button type="button" class="btn btn-outline-primary" onclick="clearFilters()">
-                            <i class="fas fa-times me-2"></i>Clear Filters
-                        </button>
-                    </div>
-                `;
-                cardView.appendChild(emptyState);
+            if (visibleCount === 0 && projectCards.length > 0) {
+                if (!existingEmptyState) {
+                    const emptyState = document.createElement('div');
+                    emptyState.className = 'col-12 empty-search-state';
+                    emptyState.innerHTML = `
+                        <div class="empty-state text-center py-5">
+                            <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                            <h4>No Projects Found</h4>
+                            <p class="text-muted">Try adjusting your search criteria or filters</p>
+                            <button type="button" class="btn btn-outline-primary" onclick="clearFilters()">
+                                <i class="fas fa-times me-2"></i>Clear Filters
+                            </button>
+                        </div>
+                    `;
+                    cardView.appendChild(emptyState);
+                }
+            } else if (existingEmptyState) {
+                existingEmptyState.remove();
             }
-        } else if (existingEmptyState) {
-            // Remove empty state if projects are visible
-            existingEmptyState.remove();
+        } else {
+            const tbody = document.getElementById('tableBody');
+            const existingEmptyRow = tbody.querySelector('.empty-search-row');
+
+            if (visibleCount === 0 && projectRows.length > 0) {
+                if (!existingEmptyRow) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.className = 'empty-search-row';
+                    emptyRow.innerHTML = `
+                        <td colspan="8" class="text-center py-5">
+                            <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                            <h4>No Projects Found</h4>
+                            <p class="text-muted">Try adjusting your search criteria or filters</p>
+                            <button type="button" class="btn btn-outline-primary" onclick="clearFilters()">
+                                <i class="fas fa-times me-2"></i>Clear Filters
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(emptyRow);
+                }
+            } else if (existingEmptyRow) {
+                existingEmptyRow.remove();
+            }
         }
     }
 
@@ -682,5 +756,27 @@ document.addEventListener('DOMContentLoaded', function () {
         filterProjects();
     };
 });
+</script>
+
+
+<!-- jQuery (must be loaded first) -->
+<!-- <script src="{%static 'assets\js\jquery-3.6.0.min.js' %}"></script> -->
+
+
+<!-- DataTables CSS -->
+<link rel="stylesheet" href="{%static 'assets\css\jquery.dataTables.min.css' %}">
+
+<!-- DataTables JS (load after jQuery) -->
+<script src="{%static 'assets\js\jquery.dataTables.min.js' %}"></script>
+
+<script>
+    $(document).ready(function() {
+        if ($.fn.DataTable) {
+            console.log("DataTable is loaded.");
+            $('#projectsTable').DataTable();
+        } else {
+            console.error("DataTable is not loaded.");
+        }
+    });
 </script>
 {% endblock %}

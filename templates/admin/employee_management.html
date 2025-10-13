@@ -123,11 +123,13 @@
                 <div class="modal-body">
                     <div class="row">
                         {% for field in form %}
+
                         <div class="col-md-6 mb-3">
                             <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
                             {{ field }}
                             <div class="field-errors"></div>
                         </div>
+                        
                         {% endfor %}
                     </div>
 

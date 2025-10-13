@@ -225,11 +225,12 @@ def employee_management(request):
     if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
     if request.user.role == "admin":
+        
         employees = CustomUser.objects.filter(role__in =['user', 'semi-admin']).order_by('employee_id')
     else:
         location = request.user.work_location
         employees = CustomUser.objects.filter(role__in =['user', 'semi-admin'], work_location = location).order_by('employee_id')
-    form = CustomUserForm()  # For the add employee modal
+    form = CustomUserForm(current_user=request.user)  # For the add employee modal
     work_locations = WorkLocation.objects.all()
     context = {
         'employees': employees,
@@ -245,7 +246,7 @@ def add_employee(request):
         return redirect('employee_dashboard')
     
     if request.method == 'POST':
-        form = CustomUserForm(request.POST, request.FILES)
+        form = CustomUserForm(request.POST, request.FILES, current_user=request.user)
         
         if form.is_valid():
             try:
@@ -300,7 +301,7 @@ def add_employee(request):
             return redirect("employee_management")
     else:
         # GET request - show empty form
-        form = CustomUserForm()
+        form = CustomUserForm(current_user=request.user)
         work_locations = WorkLocation.objects.all()
     
     context = {
@@ -377,7 +378,7 @@ def edit_employee(request, user_id):
     employee = get_object_or_404(User, id=user_id)
     
     if request.method == 'POST':
-        form = CustomUserForm(request.POST, request.FILES, instance=employee)
+        form = CustomUserForm(request.POST, request.FILES, instance=employee, current_user=request.user)
         if form.is_valid():
             form.save()
             
@@ -746,7 +747,11 @@ def employee_search(request):
     role_filter = request.GET.get('role', '')
     status_filter = request.GET.get('status', '')
     
-    employees = User.objects.filter(role='user')
+    if request.user.role == "admin":
+        employees = User.objects.filter(role='user')
+    else:
+        user_location = request.user.work_location
+        employees = User.objects.filter(role='user',work_location = user_location )
     
     # Apply search filter
     if query:
@@ -811,9 +816,9 @@ def project_management(request):
     # Get base queryset
     if request.user.role == 'semi-admin':
         location = request.user.work_location
-        projects = Project.objects.filter(work_location=location)
+        projects = Project.objects.filter(work_location=location).order_by("project_id")
     else:
-        projects = Project.objects.all()
+        projects = Project.objects.all().order_by("project_id")
     
     # Apply filters from request (for AJAX/future use)
     status_filter = request.GET.get('status', '')
@@ -835,7 +840,7 @@ def project_management(request):
     # If you have many projects (1000+), consider server-side filtering instead
     all_projects = projects
     
-    form = ProjectForm()
+    form = ProjectForm(current_user=request.user)
     
     context = {
         'projects': all_projects,
@@ -850,7 +855,7 @@ def add_project(request):
         return redirect('employee_dashboard')
     
     if request.method == 'POST':
-        form = ProjectForm(request.POST)
+        form = ProjectForm(request.POST, current_user=request.user)
         if form.is_valid():
             project = form.save(commit=False)
             project.created_by = request.user
@@ -870,7 +875,7 @@ def edit_project(request, project_id):
     project = get_object_or_404(Project, id=project_id)
     
     if request.method == 'POST':
-        form = ProjectForm(request.POST, instance=project)
+        form = ProjectForm(request.POST, instance=project, current_user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, 'Project updated successfully!')
@@ -931,9 +936,9 @@ def work_entry_management(request):
         return redirect('employee_dashboard')
     if request.user.role == 'semi-admin':
         location = request.user.work_location
-        work_entries = WorkEntry.objects.filter(employee__work_location = location).select_related('employee', 'project').order_by('-work_date')
+        work_entries = WorkEntry.objects.filter(employee__work_location = location).select_related('employee', 'project').order_by('employee__first_name')
     else:
-        work_entries = WorkEntry.objects.select_related('employee', 'project').order_by('-work_date')
+        work_entries = WorkEntry.objects.select_related('employee', 'project').order_by('employee__first_name')
 
     # Filters
     employee_filter = request.GET.get('employee')
@@ -963,7 +968,7 @@ def work_entry_management(request):
   
     try:
         if request.method == "POST":
-            form = WorkEntryFormAdmin(request.POST)
+            form = WorkEntryFormAdmin(request.POST, current_user=request.user)
             if form.is_valid():
                 instance = form.save()
                 instance.save()
@@ -982,7 +987,7 @@ def work_entry_management(request):
         'work_entries': work_entries,
         'employees': employees,
         'projects': projects,
-        "form":WorkEntryFormAdmin()
+        "form" : WorkEntryFormAdmin(current_user=request.user)
     }
     return render(request, 'admin/work_entry_management.html', context)
 
@@ -994,7 +999,7 @@ def edit_work_entry(request, entry_id):
     work_entry = get_object_or_404(WorkEntry, id=entry_id)
     
     if request.method == 'POST':
-        form = WorkEntryFormAdmin(request.POST, instance=work_entry)
+        form = WorkEntryFormAdmin(request.POST, instance=work_entry, current_user=request.user)
         if form.is_valid():
             entry = form.save(commit=False)
             entry.updated_by = request.user
@@ -1002,9 +1007,26 @@ def edit_work_entry(request, entry_id):
             messages.success(request, 'Work entry updated successfully!')
             return redirect('work_entry_management')
     else:
-        form = WorkEntryFormAdmin(instance=work_entry)
+        form = WorkEntryFormAdmin(instance=work_entry, current_user=request.user)
     
     return render(request, 'admin/edit_work_entry.html', {'form': form, 'work_entry': work_entry})
+
+
+
+@login_required
+def delete_work_entry(request, entry_id):
+    if request.user.role not in ['admin', 'semi-admin']:
+        return redirect('employee_dashboard')
+    
+    work_entry = get_object_or_404(WorkEntry, id=entry_id)
+    work_entry.delete()
+    messages.info(request, 'work entry deleted')
+    return redirect("work_entry_management")
+    
+    
+    
+    # return render(request, 'admin/edit_work_entry.html', {'form': form, 'work_entry': work_entry})
+
 
 
 @login_required
@@ -1359,8 +1381,13 @@ def all_projects_work_summary(request):
     if not end_date:
         end_date = timezone.now().date()
     
-    # Base queryset
-    work_entries = WorkEntry.objects.all()
+        # Get base queryset
+    if request.user.role == 'semi-admin':
+        location = request.user.work_location
+        work_entries = WorkEntry.objects.filter(employee__work_location = location)
+    else:
+        # Base queryset
+        work_entries = WorkEntry.objects.all()
     
     # Apply date filters
     if start_date:
@@ -1694,8 +1721,14 @@ def export_all_projects_excel(request):
     parsed_start_date = parse_date(start_date)
     parsed_end_date = parse_date(end_date)
     
-    # Filter work entries
-    work_entries = WorkEntry.objects.all()
+    # Get base queryset
+    if request.user.role == 'semi-admin':
+        location = request.user.work_location
+        work_entries = WorkEntry.objects.filter(employee__work_location = location)
+    else:
+        # Base queryset
+        work_entries = WorkEntry.objects.all()
+
     if parsed_start_date:
         work_entries = work_entries.filter(work_date__gte=parsed_start_date)
     if parsed_end_date:
@@ -1818,11 +1851,18 @@ def reports(request):
         start_date = date.fromisoformat(start_date_param)
     if end_date_param:
         end_date = date.fromisoformat(end_date_param)
-    
-    # Base query
-    work_entries = WorkEntry.objects.filter(
-        work_date__range=[start_date, end_date]
-    ).select_related('employee', 'project')
+        # Get base queryset
+    if request.user.role == 'semi-admin':
+        location = request.user.work_location
+        # work_entries = WorkEntry.objects.filter(employee__work_location = location)
+        work_entries = WorkEntry.objects.filter(
+           employee__work_location = location, work_date__range=[start_date, end_date]
+        ).select_related('employee', 'project')
+    else:
+        # Base query
+        work_entries = WorkEntry.objects.filter(
+            work_date__range=[start_date, end_date]
+        ).select_related('employee', 'project')
     
     if employee_id:
         work_entries = work_entries.filter(employee_id=employee_id)
@@ -1839,8 +1879,13 @@ def reports(request):
             total_hours=Sum('working_hours')
         ).order_by('project__name')
     
-    employees = User.objects.filter(role='employee', is_active=True)
-    projects = Project.objects.all()
+    if request.user.role == 'semi-admin':
+        projects = Project.objects.filter(work_location = location)
+        employees = CustomUser.objects.filter(role='user', is_active=True, work_location = location)
+
+    else:
+        employees = CustomUser.objects.filter(role='user', is_active=True)
+        projects = Project.objects.all()
     
     context = {
         'report_data': report_data,
@@ -1856,9 +1901,16 @@ def reports(request):
 
 
 def download_reports(request):
+    if request.user.role == 'semi-admin':
+        location = request.user.work_location
+        projects = Project.objects.filter(work_location = location)
+        employees = CustomUser.objects.filter(is_active=True, work_location = location).order_by('first_name')
+    else:
+        projects = Project.objects.all()
+        employees = CustomUser.objects.filter(is_active=True).order_by('first_name')
     context = {
-        'projects': Project.objects.all().order_by('name'),
-        'employees': CustomUser.objects.filter(is_active=True).order_by('first_name'),
+        'projects': projects,
+        'employees': employees,
         'current_date': date.today(),
     }
     return render(request,"admin/download_reports.html", context)
@@ -1866,9 +1918,16 @@ def download_reports(request):
 @login_required
 def reports_dashboard(request):
     """Main reports dashboard view"""
+    if request.user.role == 'semi-admin':
+        location = request.user.work_location
+        projects = Project.objects.filter(work_location = location)
+        employees = CustomUser.objects.filter(is_active=True, work_location = location).order_by('first_name')
+    else:
+        projects = Project.objects.all()
+        employees = CustomUser.objects.filter(is_active=True).order_by('first_name')
     context = {
-        'projects': Project.objects.all().order_by('name'),
-        'employees': CustomUser.objects.filter(is_active=True).order_by('first_name'),
+        'projects': projects,
+        'employees':employees,
         'current_date': date.today(),
     }
     return render(request, 'reports/reports_dashboard.html', context)
@@ -1889,7 +1948,7 @@ def generate_report(request):
     selected_year = request.POST.get('selected_year')
     employee_id = request.POST.get('employee_id')
     project_id = request.POST.get('project_id')
-    report_format =  request.POST.get("report_format")
+    report_format = request.POST.get("report_format")
 
     try:
         # Determine date range
@@ -1919,15 +1978,15 @@ def generate_report(request):
         # Generate report based on type
         if report_type == 'employee':
             if report_format == 'Full':
-                return generate_employee_single_table_report(start_date, end_date, employee_id)
+                return generate_employee_single_table_report(request, start_date, end_date, employee_id)
             else:
-                return generate_employee_report(start_date, end_date, project_id)
+                return generate_employee_report(request, start_date, end_date, employee_id)
 
         elif report_type == 'project':
             if report_format == 'Full':
-                return generate_project_single_table_report(start_date, end_date, project_id)
+                return generate_project_single_table_report(request, start_date, end_date, project_id)
             else:
-                return generate_project_report(start_date, end_date, project_id)
+                return generate_project_report(request, start_date, end_date, project_id)
 
         else:
             messages.error(request, 'Invalid report type selected.')
@@ -1936,6 +1995,944 @@ def generate_report(request):
     except Exception as e:
         messages.error(request, f'Error generating report: {str(e)}')
         return redirect('reports_dashboard')
+
+
+def generate_employee_single_table_report(request, start_date, end_date, employee_id=None):
+    """Generate employee-wise Excel report with cost calculations in single table format"""
+    # Create workbook and worksheet
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Employee Work Report"
+    
+    # Set up styles
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+    subheader_font = Font(bold=True)
+    border = Border(left=Side(style='thin'), right=Side(style='thin'), 
+                   top=Side(style='thin'), bottom=Side(style='thin'))
+    
+    # Report header
+    ws['A1'] = "Employee Work Report - Single Table"
+    ws['A1'].font = Font(bold=True, size=16)
+    ws['A2'] = f"Period: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}"
+    ws['A3'] = f"Generated on: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
+    
+    # Filter work entries based on user role
+    if request.user.role == 'semi-admin':
+        location = request.user.work_location
+        work_entries = WorkEntry.objects.filter(
+            work_date__range=[start_date, end_date],
+            employee__work_location=location
+        ).select_related('employee', 'project').order_by('employee__first_name', 'work_date')
+    else:
+        work_entries = WorkEntry.objects.filter(
+            work_date__range=[start_date, end_date]
+        ).select_related('employee', 'project').order_by('employee__first_name', 'work_date')
+    
+    if employee_id:
+        work_entries = work_entries.filter(employee_id=employee_id)
+    
+    # Calculate summary data
+    employees_data = {}
+    projects_cost = {}
+    total_report_cost = 0
+    
+    for entry in work_entries:
+        emp_key = entry.employee.id
+        project_key = entry.project.id
+        
+        if emp_key not in employees_data:
+            employees_data[emp_key] = {
+                'employee': entry.employee,
+                'total_hours': 0,
+                'total_cost': 0,
+                'projects': set()
+            }
+        
+        # Calculate cost for this entry
+        entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
+        
+        employees_data[emp_key]['total_hours'] += float(entry.working_hours)
+        employees_data[emp_key]['total_cost'] += entry_cost
+        employees_data[emp_key]['projects'].add(entry.project.name)
+        
+        # Track project costs
+        if project_key not in projects_cost:
+            projects_cost[project_key] = {
+                'project': entry.project,
+                'total_cost': 0,
+                'total_hours': 0
+            }
+        projects_cost[project_key]['total_cost'] += entry_cost
+        projects_cost[project_key]['total_hours'] += float(entry.working_hours)
+        
+        total_report_cost += entry_cost
+    
+    # Start writing data
+    current_row = 5
+    
+    # Employee Cost Summary Section
+    if employees_data:
+        ws[f'A{current_row}'] = "EMPLOYEE COST SUMMARY"
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        current_row += 1
+        
+        # Employee table headers
+        employee_headers = ['Employee Name', 'Designation', 'Hourly Rate ($)', 'Total Hours', 'Total Cost ($)']
+        for col, header in enumerate(employee_headers, 1):
+            cell = ws.cell(row=current_row, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.border = border
+            cell.alignment = Alignment(horizontal='center')
+        
+        current_row += 1
+        
+        # Employee data rows
+        for employee_data in sorted(employees_data.values(), key=lambda x: x['employee'].first_name):
+            employee = employee_data['employee']
+            ws[f'A{current_row}'] = f"{employee.first_name} {employee.last_name or ''}"
+            ws[f'B{current_row}'] = employee.designation or 'N/A'
+            ws[f'C{current_row}'] = float(employee.man_hour_of_employee)
+            ws[f'D{current_row}'] = float(employee_data['total_hours'])
+            ws[f'E{current_row}'] = float(employee_data['total_cost'])
+            
+            # Apply borders
+            for col in range(1, 6):
+                ws.cell(row=current_row, column=col).border = border
+            
+            current_row += 1
+        
+        current_row += 2  # Space after employee summary
+    
+    # Single Employee Work Table
+    ws[f'A{current_row}'] = "EMPLOYEE WORK DETAILS"
+    ws[f'A{current_row}'].font = Font(bold=True, size=14)
+    current_row += 2
+    
+    # Single table headers
+    headers = ['Date', 'Employee Name', 'Designation', 'Project', 'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description']
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=current_row, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = border
+        cell.alignment = Alignment(horizontal='center')
+    
+    current_row += 1
+    
+    # Single table data rows
+    for entry in work_entries:
+        entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
+        ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
+        ws[f'B{current_row}'] = f"{entry.employee.first_name} {entry.employee.last_name or ''}"
+        ws[f'C{current_row}'] = entry.employee.designation or 'N/A'
+        ws[f'D{current_row}'] = entry.project.name
+        ws[f'E{current_row}'] = entry.start_time.strftime('%H:%M')
+        ws[f'F{current_row}'] = entry.end_time.strftime('%H:%M')
+        ws[f'G{current_row}'] = float(entry.working_hours)
+        ws[f'H{current_row}'] = float(entry.employee.man_hour_of_employee)
+        ws[f'I{current_row}'] = float(entry_cost)
+        ws[f'J{current_row}'] = entry.description
+        
+        # Apply borders
+        for col in range(1, 11):
+            ws.cell(row=current_row, column=col).border = border
+        
+        current_row += 1
+    
+    current_row += 2  # Space before summary
+    
+    # Add total report summary
+    if employees_data:
+        ws[f'A{current_row}'] = "OVERALL REPORT SUMMARY"
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        current_row += 1
+        
+        total_hours_all = sum(emp_data['total_hours'] for emp_data in employees_data.values())
+        total_employees = len(employees_data)
+        total_projects = len(projects_cost)
+        total_entries = len(work_entries)
+        
+        ws[f'A{current_row}'] = f"Total Employees: {total_employees}"
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Total Projects: {total_projects}"
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Total Work Entries: {total_entries}"
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Total Hours Worked: {total_hours_all:.2f}"
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Total Cost: ${total_report_cost:.2f}"
+        ws[f'A{current_row}'].font = Font(bold=True, size=12, color="FF0000")
+        current_row += 1
+        
+        # Average calculations
+        avg_hours_per_employee = total_hours_all / total_employees if total_employees > 0 else 0
+        avg_cost_per_employee = total_report_cost / total_employees if total_employees > 0 else 0
+        
+        ws[f'A{current_row}'] = f"Average Hours per Employee: {avg_hours_per_employee:.2f}"
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Average Cost per Employee: ${avg_cost_per_employee:.2f}"
+        ws[f'A{current_row}'].font = subheader_font
+    
+    # Adjust column widths
+    column_widths = [20, 15, 25, 12, 12, 12, 10, 12, 12, 40]
+    for col, width in enumerate(column_widths, 1):
+        ws.column_dimensions[get_column_letter(col)].width = width
+    
+    # Save to BytesIO
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    # Create response
+    response = HttpResponse(
+        output.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"employee_single_table_report_{start_date}_{end_date}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    return response
+
+
+def generate_project_single_table_report(request, start_date, end_date, project_id=None):
+    """Generate project-wise Excel report with cost calculations in single table format"""
+    # Create workbook and worksheet
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Project Work Report"
+    
+    # Set up styles
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+    subheader_font = Font(bold=True)
+    border = Border(left=Side(style='thin'), right=Side(style='thin'), 
+                   top=Side(style='thin'), bottom=Side(style='thin'))
+    
+    # Number formatting styles
+    number_format = '#,##0.00'
+    currency_format = '$#,##0.00'
+    hour_format = '#,##0.00'
+    
+    # Report header
+    ws['A1'] = "Project Work Report"
+    ws['A1'].font = Font(bold=True, size=16)
+    ws['A2'] = f"Period: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}"
+    ws['A3'] = f"Generated on: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
+    
+    # Filter work entries based on user role
+    if request.user.role == 'semi-admin':
+        location = request.user.work_location
+        work_entries = WorkEntry.objects.filter(
+            work_date__range=[start_date, end_date],
+            employee__work_location=location
+        ).select_related('employee', 'project').order_by('project__name', 'work_date')
+    else:
+        work_entries = WorkEntry.objects.filter(
+            work_date__range=[start_date, end_date]
+        ).select_related('employee', 'project').order_by('project__name', 'work_date')
+    
+    if project_id:
+        work_entries = work_entries.filter(project_id=project_id)
+    
+    # Calculate summary data
+    projects_data = {}
+    employees_cost = {}
+    total_report_cost = 0
+    
+    for entry in work_entries:
+        proj_key = entry.project.id
+        emp_key = entry.employee.id
+        
+        if proj_key not in projects_data:
+            projects_data[proj_key] = {
+                'project': entry.project,
+                'total_hours': 0,
+                'total_cost': 0,
+                'employees': set()
+            }
+        
+        # Calculate cost for this entry
+        entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
+        
+        projects_data[proj_key]['total_hours'] += float(entry.working_hours)
+        projects_data[proj_key]['total_cost'] += entry_cost
+        projects_data[proj_key]['employees'].add(f"{entry.employee.first_name} {entry.employee.last_name or ''}")
+        
+        # Track employee costs
+        if emp_key not in employees_cost:
+            employees_cost[emp_key] = {
+                'employee': entry.employee,
+                'total_cost': 0,
+                'total_hours': 0
+            }
+        employees_cost[emp_key]['total_cost'] += entry_cost
+        employees_cost[emp_key]['total_hours'] += float(entry.working_hours)
+        
+        total_report_cost += entry_cost
+    
+    # Start writing data
+    current_row = 5
+    
+    # Project Cost Summary Section
+    if projects_data:
+        ws[f'A{current_row}'] = "PROJECT COST SUMMARY"
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        current_row += 1
+        
+        # Project table headers
+        project_headers = ['Project ID', 'Project Name', 'Total Hours', 'Total Cost']
+        for col, header in enumerate(project_headers, 1):
+            cell = ws.cell(row=current_row, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.border = border
+            cell.alignment = Alignment(horizontal='center')
+        
+        current_row += 1
+        
+        # Project data rows
+        for project_data in sorted(projects_data.values(), key=lambda x: x['project'].name):
+            project = project_data['project']
+            
+            ws[f'A{current_row}'] = project.project_id
+            ws[f'B{current_row}'] = project.name
+            
+            hours_cell = ws[f'C{current_row}']
+            hours_cell.value = project_data['total_hours']
+            hours_cell.number_format = hour_format
+            
+            cost_cell = ws[f'D{current_row}']
+            cost_cell.value = project_data['total_cost']
+            cost_cell.number_format = currency_format
+            
+            for col in range(1, 5):
+                ws.cell(row=current_row, column=col).border = border
+            
+            current_row += 1
+        
+        current_row += 2
+    
+    # Single Project Work Table
+    ws[f'A{current_row}'] = "PROJECT WORK DETAILS"
+    ws[f'A{current_row}'].font = Font(bold=True, size=14)
+    current_row += 2
+    
+    # Single table headers
+    headers = ['Date', 'Project Name', 'Project ID', 'Employee', 'Designation', 'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description']
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=current_row, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = border
+        cell.alignment = Alignment(horizontal='center')
+    
+    current_row += 1
+    
+    # Single table data rows
+    for entry in work_entries:
+        entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
+        
+        ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
+        ws[f'B{current_row}'] = entry.project.name
+        ws[f'C{current_row}'] = entry.project.project_id
+        ws[f'D{current_row}'] = f"{entry.employee.first_name} {entry.employee.last_name or ''}"
+        ws[f'E{current_row}'] = entry.employee.designation or 'N/A'
+        ws[f'F{current_row}'] = entry.start_time.strftime('%H:%M')
+        ws[f'G{current_row}'] = entry.end_time.strftime('%H:%M')
+        
+        hours_cell = ws[f'H{current_row}']
+        hours_cell.value = float(entry.working_hours)
+        hours_cell.number_format = hour_format
+        
+        rate_cell = ws[f'I{current_row}']
+        rate_cell.value = float(entry.employee.man_hour_of_employee)
+        rate_cell.number_format = currency_format
+        
+        cost_cell = ws[f'J{current_row}']
+        cost_cell.value = entry_cost
+        cost_cell.number_format = currency_format
+        
+        ws[f'K{current_row}'] = entry.description
+        
+        for col in range(1, 12):
+            ws.cell(row=current_row, column=col).border = border
+        
+        current_row += 1
+    
+    current_row += 2
+    
+    # Add total report summary
+    if projects_data:
+        ws[f'A{current_row}'] = "OVERALL REPORT SUMMARY"
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        current_row += 1
+        
+        total_hours_all = sum(proj_data['total_hours'] for proj_data in projects_data.values())
+        total_projects = len(projects_data)
+        total_employees = len(employees_cost)
+        total_entries = len(work_entries)
+        
+        projects_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Total Projects:"
+        projects_cell.value = total_projects
+        projects_cell.number_format = '0'
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        employees_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Total Employees:"
+        employees_cell.value = total_employees
+        employees_cell.number_format = '0'
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        entries_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Total Work Entries:"
+        entries_cell.value = total_entries
+        entries_cell.number_format = '0'
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        total_hours_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Total Hours Worked:"
+        total_hours_cell.value = total_hours_all
+        total_hours_cell.number_format = hour_format
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        total_cost_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Total Cost:"
+        total_cost_cell.value = total_report_cost
+        total_cost_cell.number_format = currency_format
+        ws[f'A{current_row}'].font = Font(bold=True, size=12, color="FF0000")
+        current_row += 1
+        
+        avg_hours_per_project = total_hours_all / total_projects if total_projects > 0 else 0
+        avg_cost_per_project = total_report_cost / total_projects if total_projects > 0 else 0
+        
+        avg_hours_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Average Hours per Project:"
+        avg_hours_cell.value = avg_hours_per_project
+        avg_hours_cell.number_format = hour_format
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        avg_cost_cell = ws[f'B{current_row}']
+        ws[f'A{current_row}'] = "Average Cost per Project:"
+        avg_cost_cell.value = avg_cost_per_project
+        avg_cost_cell.number_format = currency_format
+        ws[f'A{current_row}'].font = subheader_font
+    
+    # Adjust column widths
+    column_widths = [25, 15, 20, 15, 12, 12, 12, 10, 12, 12, 40]
+    for col, width in enumerate(column_widths, 1):
+        ws.column_dimensions[get_column_letter(col)].width = width
+    
+    # Save to BytesIO
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    # Create response
+    response = HttpResponse(
+        output.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"project_single_table_report_{start_date}_{end_date}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    return response
+
+
+def generate_employee_report(request, start_date, end_date, employee_id=None):
+    """Generate employee-wise Excel report with cost calculations"""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Employee Work Report"
+    
+    # Set up styles
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+    subheader_font = Font(bold=True)
+    border = Border(left=Side(style='thin'), right=Side(style='thin'), 
+                   top=Side(style='thin'), bottom=Side(style='thin'))
+    
+    # Report header
+    ws['A1'] = "Employee Work Report"
+    ws['A1'].font = Font(bold=True, size=16)
+    ws['A2'] = f"Period: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}"
+    ws['A3'] = f"Generated on: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
+    
+    # Filter work entries based on user role
+    if request.user.role == 'semi-admin':
+        location = request.user.work_location
+        work_entries = WorkEntry.objects.filter(
+            work_date__range=[start_date, end_date],
+            employee__work_location=location
+        ).select_related('employee', 'project')
+    else:
+        work_entries = WorkEntry.objects.filter(
+            work_date__range=[start_date, end_date]
+        ).select_related('employee', 'project')
+    
+    if employee_id:
+        work_entries = work_entries.filter(employee_id=employee_id)
+    
+    # Group by employee and calculate project costs
+    employees_data = {}
+    projects_cost = {}
+    total_report_cost = 0
+    
+    for entry in work_entries:
+        emp_key = entry.employee.id
+        project_key = entry.project.id
+        
+        if emp_key not in employees_data:
+            employees_data[emp_key] = {
+                'employee': entry.employee,
+                'entries': [],
+                'total_hours': 0,
+                'total_cost': 0,
+                'projects': set()
+            }
+        
+        entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
+        
+        employees_data[emp_key]['entries'].append({
+            'entry': entry,
+            'cost': entry_cost
+        })
+        employees_data[emp_key]['total_hours'] += float(entry.working_hours)
+        employees_data[emp_key]['total_cost'] += entry_cost
+        employees_data[emp_key]['projects'].add(entry.project.name)
+        
+        if project_key not in projects_cost:
+            projects_cost[project_key] = {
+                'project': entry.project,
+                'total_cost': 0,
+                'total_hours': 0
+            }
+        projects_cost[project_key]['total_cost'] += entry_cost
+        projects_cost[project_key]['total_hours'] += float(entry.working_hours)
+        
+        total_report_cost += entry_cost
+    
+    current_row = 5
+    
+    # Project Cost Summary Section
+    if projects_cost:
+        ws[f'A{current_row}'] = "PROJECT COST SUMMARY"
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        current_row += 1
+        
+        project_headers = ['Project ID', 'Project Name', 'Total Hours', 'Total Cost ($)']
+        for col, header in enumerate(project_headers, 1):
+            cell = ws.cell(row=current_row, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.border = border
+            cell.alignment = Alignment(horizontal='center')
+        
+        current_row += 1
+        
+        for project_data in sorted(projects_cost.values(), key=lambda x: x['project'].name):
+            project = project_data['project']
+            ws[f'A{current_row}'] = project.project_id
+            ws[f'B{current_row}'] = project.name
+            ws[f'C{current_row}'] = float(project_data['total_hours'])
+            ws[f'D{current_row}'] = float(project_data['total_cost'])
+            
+            for col in range(1, 5):
+                ws.cell(row=current_row, column=col).border = border
+            
+            current_row += 1
+        
+        current_row += 2
+        
+        ws[f'A{current_row}'] = "EMPLOYEE WORK DETAILS"
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        current_row += 2
+    
+    # Employee data section
+    for emp_data in employees_data.values():
+        employee = emp_data['employee']
+        
+        ws[f'A{current_row}'] = f"Employee ID: {employee.employee_id or 'N/A'}"
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Employee: {employee.first_name} {employee.last_name or ''}"
+        ws[f'A{current_row}'].font = subheader_font
+        ws[f'E{current_row}'] = f"Total Hours: {emp_data['total_hours']:.2f}"
+        ws[f'E{current_row}'].font = subheader_font
+        ws[f'G{current_row}'] = f"Total Cost: ${emp_data['total_cost']:.2f}"
+        ws[f'G{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Designation: {employee.designation or 'N/A'}"
+        ws[f'E{current_row}'] = f"Projects: {len(emp_data['projects'])}"
+        ws[f'G{current_row}'] = f"Hourly Rate: ${employee.man_hour_of_employee:.2f}"
+        current_row += 1
+        
+        current_row += 1
+        headers = ['Date', 'Project ID', 'Project', 'Start Time', 'End Time', 'Hours', 'Cost ($)', 'Description']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=current_row, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.border = border
+            cell.alignment = Alignment(horizontal='center')
+        
+        current_row += 1
+        
+        for entry_data in sorted(emp_data['entries'], key=lambda x: x['entry'].work_date):
+            entry = entry_data['entry']
+            entry_cost = entry_data['cost']
+            
+            ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
+            ws[f'B{current_row}'] = entry.project.project_id
+            ws[f'C{current_row}'] = entry.project.name
+            ws[f'D{current_row}'] = entry.start_time.strftime('%H:%M')
+            ws[f'E{current_row}'] = entry.end_time.strftime('%H:%M')
+            ws[f'F{current_row}'] = float(entry.working_hours)
+            ws[f'G{current_row}'] = float(entry_cost)
+            ws[f'H{current_row}'] = entry.description
+            
+            for col in range(1, 9):
+                ws.cell(row=current_row, column=col).border = border
+            
+            current_row += 1
+        
+        current_row += 2
+    
+    # Overall summary
+    if employees_data:
+        ws[f'A{current_row}'] = "OVERALL REPORT SUMMARY"
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        current_row += 1
+        
+        total_hours_all = sum(emp_data['total_hours'] for emp_data in employees_data.values())
+        total_employees = len(employees_data)
+        total_projects = len(projects_cost)
+        
+        ws[f'A{current_row}'] = f"Total Employees: {total_employees}"
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Total Projects: {total_projects}"
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Total Hours Worked: {total_hours_all:.2f}"
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Total Cost: ${total_report_cost:.2f}"
+        ws[f'A{current_row}'].font = Font(bold=True, size=12, color="FF0000")
+        current_row += 1
+    
+    # Adjust column widths
+    column_widths = [15, 15, 25, 12, 12, 10, 15, 40]
+    for col, width in enumerate(column_widths, 1):
+        ws.column_dimensions[get_column_letter(col)].width = width
+    
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    response = HttpResponse(
+        output.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"employee_report_with_cost_{start_date}_{end_date}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    return response
+
+
+def generate_project_report(request, start_date, end_date, project_id=None):
+    """Generate project-wise Excel report with cost calculations"""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Project Work Report"
+    
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+    subheader_font = Font(bold=True)
+    border = Border(left=Side(style='thin'), right=Side(style='thin'), 
+                   top=Side(style='thin'), bottom=Side(style='thin'))
+    
+    ws['A1'] = "Project Work Report"
+    ws['A1'].font = Font(bold=True, size=16)
+    ws['A2'] = f"Period: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}"
+    ws['A3'] = f"Generated on: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
+    
+    # Filter work entries based on user role
+    if request.user.role == 'semi-admin':
+        location = request.user.work_location
+        work_entries = WorkEntry.objects.filter(
+            work_date__range=[start_date, end_date],
+            employee__work_location=location
+        ).select_related('employee', 'project')
+    else:
+        work_entries = WorkEntry.objects.filter(
+            work_date__range=[start_date, end_date]
+        ).select_related('employee', 'project')
+    
+    if project_id:
+        work_entries = work_entries.filter(project_id=project_id)
+    
+    projects_data = {}
+    employees_cost = {}
+    total_report_cost = 0
+    
+    for entry in work_entries:
+        proj_key = entry.project.id
+        emp_key = entry.employee.id
+        
+        if proj_key not in projects_data:
+            projects_data[proj_key] = {
+                'project': entry.project,
+                'entries': [],
+                'total_hours': 0,
+                'total_cost': 0,
+                'employees': set()
+            }
+        
+        entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
+        
+        projects_data[proj_key]['entries'].append({
+            'entry': entry,
+            'cost': entry_cost
+        })
+        projects_data[proj_key]['total_hours'] += float(entry.working_hours)
+        projects_data[proj_key]['total_cost'] += entry_cost
+        projects_data[proj_key]['employees'].add(f"{entry.employee.first_name} {entry.employee.last_name or ''}")
+        
+        if emp_key not in employees_cost:
+            employees_cost[emp_key] = {
+                'employee': entry.employee,
+                'total_cost': 0,
+                'total_hours': 0
+            }
+        employees_cost[emp_key]['total_cost'] += entry_cost
+        employees_cost[emp_key]['total_hours'] += float(entry.working_hours)
+        
+        total_report_cost += entry_cost
+    
+    current_row = 5
+    
+    if employees_cost:
+        ws[f'A{current_row}'] = "EMPLOYEE COST SUMMARY"
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        current_row += 1
+        
+        employee_headers = ['Employee ID', 'Employee Name', 'Designation', 'Hourly Rate ($)', 'Total Hours', 'Total Cost ($)']
+        for col, header in enumerate(employee_headers, 1):
+            cell = ws.cell(row=current_row, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.border = border
+            cell.alignment = Alignment(horizontal='center')
+        
+        current_row += 1
+        
+        for employee_data in sorted(employees_cost.values(), key=lambda x: x['employee'].first_name):
+            employee = employee_data['employee']
+            ws[f'A{current_row}'] = employee.employee_id or 'N/A'
+            ws[f'B{current_row}'] = f"{employee.first_name} {employee.last_name or ''}"
+            ws[f'C{current_row}'] = employee.designation or 'N/A'
+            ws[f'D{current_row}'] = float(employee.man_hour_of_employee)
+            ws[f'E{current_row}'] = float(employee_data['total_hours'])
+            ws[f'F{current_row}'] = float(employee_data['total_cost'])
+            
+            for col in range(1, 7):
+                ws.cell(row=current_row, column=col).border = border
+            
+            current_row += 1
+        
+        current_row += 2
+        ws[f'A{current_row}'] = "PROJECT WORK DETAILS"
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        current_row += 2
+    
+    for proj_data in projects_data.values():
+        project = proj_data['project']
+        
+        ws[f'A{current_row}'] = f"Project: {project.name} ({project.project_id})"
+        ws[f'A{current_row}'].font = subheader_font
+        ws[f'E{current_row}'] = f"Total Hours: {proj_data['total_hours']:.2f}"
+        ws[f'E{current_row}'].font = subheader_font
+        ws[f'G{current_row}'] = f"Total Cost: ${proj_data['total_cost']:.2f}"
+        ws[f'G{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Status: {project.status.title()}"
+        ws[f'E{current_row}'] = f"Team Members: {len(proj_data['employees'])}"
+        current_row += 1
+        
+        current_row += 1
+        headers = ['Date', 'Employee ID', 'Employee', 'Start Time', 'End Time', 'Hours', 'Cost ($)', 'Description']
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=current_row, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.border = border
+            cell.alignment = Alignment(horizontal='center')
+        
+        current_row += 1
+        
+        for entry_data in sorted(proj_data['entries'], key=lambda x: x['entry'].work_date):
+            entry = entry_data['entry']
+            entry_cost = entry_data['cost']
+            
+            ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
+            ws[f'B{current_row}'] = entry.employee.employee_id or 'N/A'
+            ws[f'C{current_row}'] = f"{entry.employee.first_name} {entry.employee.last_name or ''}"
+            ws[f'D{current_row}'] = entry.start_time.strftime('%H:%M')
+            ws[f'E{current_row}'] = entry.end_time.strftime('%H:%M')
+            ws[f'F{current_row}'] = float(entry.working_hours)
+            ws[f'G{current_row}'] = float(entry_cost)
+            ws[f'H{current_row}'] = entry.description
+            
+            for col in range(1, 9):
+                ws.cell(row=current_row, column=col).border = border
+            
+            current_row += 1
+        
+        current_row += 2
+    
+    if projects_data:
+        ws[f'A{current_row}'] = "OVERALL REPORT SUMMARY"
+        ws[f'A{current_row}'].font = Font(bold=True, size=14)
+        current_row += 1
+        
+        total_hours_all = sum(proj_data['total_hours'] for proj_data in projects_data.values())
+        total_projects = len(projects_data)
+        total_employees = len(employees_cost)
+        
+        ws[f'A{current_row}'] = f"Total Projects: {total_projects}"
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Total Employees: {total_employees}"
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Total Hours Worked: {total_hours_all:.2f}"
+        ws[f'A{current_row}'].font = subheader_font
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Total Cost: ${total_report_cost:.2f}"
+        ws[f'A{current_row}'].font = Font(bold=True, size=12, color="FF0000")
+    
+    column_widths = [15, 15, 25, 12, 12, 10, 15, 40]
+    for col, width in enumerate(column_widths, 1):
+        ws.column_dimensions[get_column_letter(col)].width = width
+    
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    response = HttpResponse(
+        output.read(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    filename = f"project_report_with_cost_{start_date}_{end_date}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    return response
+
+@login_required
+def get_report_summary(request):
+    """AJAX endpoint to get report summary data"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    try:
+        # Get parameters
+        report_type = request.POST.get('report_type')
+        date_range = request.POST.get('date_range')
+        start_date = request.POST.get('start_date')
+        end_date = request.POST.get('end_date')
+        selected_date = request.POST.get('selected_date')
+        selected_month = request.POST.get('selected_month')
+        selected_year = request.POST.get('selected_year')
+        employee_id = request.POST.get('employee_id')
+        project_id = request.POST.get('project_id')
+        
+        # Determine date range
+        if date_range == 'daily':
+            if selected_date:
+                start_date = end_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
+            else:
+                start_date = end_date = date.today()
+        elif date_range == 'monthly':
+            if selected_month and selected_year:
+                year = int(selected_year)
+                month = int(selected_month)
+                start_date = date(year, month, 1)
+                end_date = date(year, month, calendar.monthrange(year, month)[1])
+            else:
+                today = date.today()
+                start_date = date(today.year, today.month, 1)
+                end_date = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+        elif date_range == 'custom':
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        
+        # Filter work entries
+        if request.user.role == 'semi-admin':
+            location = request.user.work_location
+            work_entries = WorkEntry.objects.filter(
+               employee__work_location = location, work_date__range=[start_date, end_date]
+            ).select_related('employee', 'project')
+        else:
+            work_entries = WorkEntry.objects.filter(
+                work_date__range=[start_date, end_date]
+            ).select_related('employee', 'project')
+        
+        if employee_id:
+            work_entries = work_entries.filter(employee_id=employee_id)
+        if project_id:
+            work_entries = work_entries.filter(project_id=project_id)
+        
+        # Calculate summary
+        total_hours = work_entries.aggregate(total=Sum('working_hours'))['total'] or 0
+        total_entries = work_entries.count()
+        unique_employees = work_entries.values('employee').distinct().count()
+        unique_projects = work_entries.values('project').distinct().count()
+        
+        return JsonResponse({
+            'success': True,
+            'summary': {
+                'total_hours': float(total_hours),
+                'total_entries': total_entries,
+                'unique_employees': unique_employees,
+                'unique_projects': unique_projects,
+                'date_range': f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+
+
+
+
 
 # def generate_employee_report(start_date, end_date, employee_id=None):
 #     """Generate employee-wise Excel report with cost calculations"""
@@ -2351,927 +3348,4 @@ def generate_report(request):
 #     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
 #     return response
-
-
-
-def generate_employee_single_table_report(start_date, end_date, employee_id=None):
-    """Generate employee-wise Excel report with cost calculations in single table format"""
-    # Create workbook and worksheet
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Employee Work Report"
-    
-    # Set up styles
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-    subheader_font = Font(bold=True)
-    border = Border(left=Side(style='thin'), right=Side(style='thin'), 
-                   top=Side(style='thin'), bottom=Side(style='thin'))
-    
-    # Report header
-    ws['A1'] = "Employee Work Report - Single Table"
-    ws['A1'].font = Font(bold=True, size=16)
-    ws['A2'] = f"Period: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}"
-    ws['A3'] = f"Generated on: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
-    
-    # Filter work entries
-    work_entries = WorkEntry.objects.filter(
-        work_date__range=[start_date, end_date]
-    ).select_related('employee', 'project').order_by('employee__first_name', 'work_date')
-    
-    if employee_id:
-        work_entries = work_entries.filter(employee_id=employee_id)
-    
-    # Calculate summary data
-    employees_data = {}
-    projects_cost = {}
-    total_report_cost = 0
-    
-    for entry in work_entries:
-        emp_key = entry.employee.id
-        project_key = entry.project.id
-        
-        if emp_key not in employees_data:
-            employees_data[emp_key] = {
-                'employee': entry.employee,
-                'total_hours': 0,
-                'total_cost': 0,
-                'projects': set()
-            }
-        
-        # Calculate cost for this entry
-        entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
-        
-        employees_data[emp_key]['total_hours'] += float(entry.working_hours)
-        employees_data[emp_key]['total_cost'] += entry_cost
-        employees_data[emp_key]['projects'].add(entry.project.name)
-        
-        # Track project costs
-        if project_key not in projects_cost:
-            projects_cost[project_key] = {
-                'project': entry.project,
-                'total_cost': 0,
-                'total_hours': 0
-            }
-        projects_cost[project_key]['total_cost'] += entry_cost
-        projects_cost[project_key]['total_hours'] += float(entry.working_hours)
-        
-        total_report_cost += entry_cost
-    
-    # Start writing data
-    current_row = 5
-    
-    # Employee Cost Summary Section (FIXED)
-    if employees_data:
-        ws[f'A{current_row}'] = "EMPLOYEE COST SUMMARY"
-        ws[f'A{current_row}'].font = Font(bold=True, size=14)
-        current_row += 1
-        
-        # Employee table headers
-        employee_headers = ['Employee Name', 'Designation', 'Hourly Rate ($)', 'Total Hours', 'Total Cost ($)']
-        for col, header in enumerate(employee_headers, 1):
-            cell = ws.cell(row=current_row, column=col, value=header)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.border = border
-            cell.alignment = Alignment(horizontal='center')
-        
-        current_row += 1
-        
-        # Employee data rows
-        for employee_data in sorted(employees_data.values(), key=lambda x: x['employee'].first_name):
-            employee = employee_data['employee']
-            ws[f'A{current_row}'] = f"{employee.first_name} {employee.last_name or ''}"
-            ws[f'B{current_row}'] = employee.designation or 'N/A'
-            ws[f'C{current_row}'] = float(employee.man_hour_of_employee)  # Keep as number
-            ws[f'D{current_row}'] = float(employee_data['total_hours'])   # Keep as number
-            ws[f'E{current_row}'] = float(employee_data['total_cost'])    # Keep as number
-            
-            # Apply borders
-            for col in range(1, 6):
-                ws.cell(row=current_row, column=col).border = border
-            
-            current_row += 1
-        
-        current_row += 2  # Space after employee summary
-    
-    # Single Employee Work Table
-    ws[f'A{current_row}'] = "EMPLOYEE WORK DETAILS"
-    ws[f'A{current_row}'].font = Font(bold=True, size=14)
-    current_row += 2
-    
-    # Single table headers
-    headers = ['Date', 'Employee Name', 'Designation', 'Project',  'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description']
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=current_row, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = border
-        cell.alignment = Alignment(horizontal='center')
-    
-    current_row += 1
-    
-    # Single table data rows
-    for entry in work_entries:
-        entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
-        ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
-        ws[f'B{current_row}'] = f"{entry.employee.first_name} {entry.employee.last_name or ''}"
-        ws[f'C{current_row}'] = entry.employee.designation or 'N/A'
-        ws[f'D{current_row}'] = entry.project.name  
-        ws[f'E{current_row}'] = entry.start_time.strftime('%H:%M')
-        ws[f'F{current_row}'] = entry.end_time.strftime('%H:%M')
-        ws[f'G{current_row}'] = float(entry.working_hours)              # Keep as number
-        ws[f'H{current_row}'] = float(entry.employee.man_hour_of_employee)  # Keep as number
-        ws[f'I{current_row}'] = float(entry_cost)                      # Keep as number
-        ws[f'J{current_row}'] = entry.description
-        
-        # Apply borders
-        for col in range(1, 11):
-            ws.cell(row=current_row, column=col).border = border
-        
-        current_row += 1
-    
-    current_row += 2  # Space before summary
-    
-    # Add total report summary
-    if employees_data:
-        ws[f'A{current_row}'] = "OVERALL REPORT SUMMARY"
-        ws[f'A{current_row}'].font = Font(bold=True, size=14)
-        current_row += 1
-        
-        total_hours_all = sum(emp_data['total_hours'] for emp_data in employees_data.values())
-        total_employees = len(employees_data)
-        total_projects = len(projects_cost)
-        total_entries = len(work_entries)
-        
-        ws[f'A{current_row}'] = f"Total Employees: {total_employees}"
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Total Projects: {total_projects}"
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Total Work Entries: {total_entries}"
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Total Hours Worked: {total_hours_all:.2f}"
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Total Cost: ${total_report_cost:.2f}"
-        ws[f'A{current_row}'].font = Font(bold=True, size=12, color="FF0000")
-        current_row += 1
-        
-        # Average calculations
-        avg_hours_per_employee = total_hours_all / total_employees if total_employees > 0 else 0
-        avg_cost_per_employee = total_report_cost / total_employees if total_employees > 0 else 0
-        
-        ws[f'A{current_row}'] = f"Average Hours per Employee: {avg_hours_per_employee:.2f}"
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Average Cost per Employee: ${avg_cost_per_employee:.2f}"
-        ws[f'A{current_row}'].font = subheader_font
-    
-    # Adjust column widths
-    column_widths = [20, 15, 25, 12, 12, 12, 10, 12, 12, 40]
-    for col, width in enumerate(column_widths, 1):
-        ws.column_dimensions[get_column_letter(col)].width = width
-    
-    # Save to BytesIO
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
-    
-    # Create response
-    response = HttpResponse(
-        output.read(),
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    filename = f"employee_single_table_report_{start_date}_{end_date}.xlsx"
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    
-    return response
-
-
-def generate_project_single_table_report(start_date, end_date, project_id=None):
-    """Generate project-wise Excel report with cost calculations in single table format"""
-    # Create workbook and worksheet
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Project Work Report"
-    
-    # Set up styles
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-    subheader_font = Font(bold=True)
-    border = Border(left=Side(style='thin'), right=Side(style='thin'), 
-                   top=Side(style='thin'), bottom=Side(style='thin'))
-    
-    # Number formatting styles
-    number_format = '#,##0.00'  # For decimal numbers with 2 decimal places
-    currency_format = '$#,##0.00'  # For currency values
-    hour_format = '#,##0.00'  # For hours
-    
-    # Report header
-    ws['A1'] = "Project Work Report "
-    ws['A1'].font = Font(bold=True, size=16)
-    ws['A2'] = f"Period: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}"
-    ws['A3'] = f"Generated on: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
-    
-    # Filter work entries
-    work_entries = WorkEntry.objects.filter(
-        work_date__range=[start_date, end_date]
-    ).select_related('employee', 'project').order_by('project__name', 'work_date')
-    
-    if project_id:
-        work_entries = work_entries.filter(project_id=project_id)
-    
-    # Calculate summary data
-    projects_data = {}
-    employees_cost = {}
-    total_report_cost = 0
-    
-    for entry in work_entries:
-        proj_key = entry.project.id
-        emp_key = entry.employee.id
-        
-        if proj_key not in projects_data:
-            projects_data[proj_key] = {
-                'project': entry.project,
-                'total_hours': 0,
-                'total_cost': 0,
-                'employees': set()
-            }
-        
-        # Calculate cost for this entry
-        entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
-        
-        projects_data[proj_key]['total_hours'] += float(entry.working_hours)
-        projects_data[proj_key]['total_cost'] += entry_cost
-        projects_data[proj_key]['employees'].add(f"{entry.employee.first_name} {entry.employee.last_name or ''}")
-        
-        # Track employee costs
-        if emp_key not in employees_cost:
-            employees_cost[emp_key] = {
-                'employee': entry.employee,
-                'total_cost': 0,
-                'total_hours': 0
-            }
-        employees_cost[emp_key]['total_cost'] += entry_cost
-        employees_cost[emp_key]['total_hours'] += float(entry.working_hours)
-        
-        total_report_cost += entry_cost
-    
-    # Start writing data
-    current_row = 5
-    
-    # Project Cost Summary Section (FIXED)
-    if projects_data:
-        ws[f'A{current_row}'] = "PROJECT COST SUMMARY"
-        ws[f'A{current_row}'].font = Font(bold=True, size=14)
-        current_row += 1
-        
-        # Project table headers
-        project_headers = ['Project ID', 'Project Name', 'Total Hours', 'Total Cost']
-        for col, header in enumerate(project_headers, 1):
-            cell = ws.cell(row=current_row, column=col, value=header)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.border = border
-            cell.alignment = Alignment(horizontal='center')
-        
-        current_row += 1
-        
-        # Project data rows
-        for project_data in sorted(projects_data.values(), key=lambda x: x['project'].name):
-            project = project_data['project']
-            
-            # Project ID and Name as text
-            ws[f'A{current_row}'] = project.project_id
-            ws[f'B{current_row}'] = project.name
-            
-            # Total Hours as number with formatting
-            hours_cell = ws[f'C{current_row}']
-            hours_cell.value = project_data['total_hours']  # Direct number assignment
-            hours_cell.number_format = hour_format
-            
-            # Total Cost as number with currency formatting
-            cost_cell = ws[f'D{current_row}']
-            cost_cell.value = project_data['total_cost']  # Direct number assignment
-            cost_cell.number_format = currency_format
-            
-            # Apply borders
-            for col in range(1, 5):
-                ws.cell(row=current_row, column=col).border = border
-            
-            current_row += 1
-        
-        current_row += 2  # Space after project summary
-    
-    # Single Project Work Table
-    ws[f'A{current_row}'] = "PROJECT WORK DETAILS"
-    ws[f'A{current_row}'].font = Font(bold=True, size=14)
-    current_row += 2
-    
-    # Single table headers
-    headers = ['Date','Project Name', 'Project ID', 'Employee', 'Designation', 'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description']
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=current_row, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = border
-        cell.alignment = Alignment(horizontal='center')
-    
-    current_row += 1
-    
-    # Single table data rows
-    for entry in work_entries:
-        entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
-        
-        # Date, Project Name, Project ID, Employee, Designation as text
-        ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
-        ws[f'B{current_row}'] = entry.project.name
-        ws[f'C{current_row}'] = entry.project.project_id
-        ws[f'D{current_row}'] = f"{entry.employee.first_name} {entry.employee.last_name or ''}"
-        ws[f'E{current_row}'] = entry.employee.designation or 'N/A'
-        ws[f'F{current_row}'] = entry.start_time.strftime('%H:%M')
-        ws[f'G{current_row}'] = entry.end_time.strftime('%H:%M')
-        
-        # Hours as number with formatting
-        hours_cell = ws[f'H{current_row}']
-        hours_cell.value = float(entry.working_hours)  # Direct number assignment
-        hours_cell.number_format = hour_format
-        
-        # Hourly Rate as number with currency formatting
-        rate_cell = ws[f'I{current_row}']
-        rate_cell.value = float(entry.employee.man_hour_of_employee)  # Direct number assignment
-        rate_cell.number_format = currency_format
-        
-        # Cost as number with currency formatting
-        cost_cell = ws[f'J{current_row}']
-        cost_cell.value = entry_cost  # Direct number assignment
-        cost_cell.number_format = currency_format
-        
-        # Description as text
-        ws[f'K{current_row}'] = entry.description
-        
-        # Apply borders
-        for col in range(1, 12):
-            ws.cell(row=current_row, column=col).border = border
-        
-        current_row += 1
-    
-    current_row += 2  # Space before summary
-    
-    # Add total report summary
-    if projects_data:
-        ws[f'A{current_row}'] = "OVERALL REPORT SUMMARY"
-        ws[f'A{current_row}'].font = Font(bold=True, size=14)
-        current_row += 1
-        
-        total_hours_all = sum(proj_data['total_hours'] for proj_data in projects_data.values())
-        total_projects = len(projects_data)
-        total_employees = len(employees_cost)
-        total_entries = len(work_entries)
-        
-        # Total Projects as number
-        projects_cell = ws[f'B{current_row}']
-        ws[f'A{current_row}'] = "Total Projects:"
-        projects_cell.value = total_projects
-        projects_cell.number_format = '0'
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        # Total Employees as number
-        employees_cell = ws[f'B{current_row}']
-        ws[f'A{current_row}'] = "Total Employees:"
-        employees_cell.value = total_employees
-        employees_cell.number_format = '0'
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        # Total Work Entries as number
-        entries_cell = ws[f'B{current_row}']
-        ws[f'A{current_row}'] = "Total Work Entries:"
-        entries_cell.value = total_entries
-        entries_cell.number_format = '0'
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        # Total Hours Worked as number
-        total_hours_cell = ws[f'B{current_row}']
-        ws[f'A{current_row}'] = "Total Hours Worked:"
-        total_hours_cell.value = total_hours_all
-        total_hours_cell.number_format = hour_format
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        # Total Cost as number with currency formatting
-        total_cost_cell = ws[f'B{current_row}']
-        ws[f'A{current_row}'] = "Total Cost:"
-        total_cost_cell.value = total_report_cost
-        total_cost_cell.number_format = currency_format
-        ws[f'A{current_row}'].font = Font(bold=True, size=12, color="FF0000")
-        current_row += 1
-        
-        # Average calculations
-        avg_hours_per_project = total_hours_all / total_projects if total_projects > 0 else 0
-        avg_cost_per_project = total_report_cost / total_projects if total_projects > 0 else 0
-        
-        # Average Hours per Project as number
-        avg_hours_cell = ws[f'B{current_row}']
-        ws[f'A{current_row}'] = "Average Hours per Project:"
-        avg_hours_cell.value = avg_hours_per_project
-        avg_hours_cell.number_format = hour_format
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        # Average Cost per Project as number
-        avg_cost_cell = ws[f'B{current_row}']
-        ws[f'A{current_row}'] = "Average Cost per Project:"
-        avg_cost_cell.value = avg_cost_per_project
-        avg_cost_cell.number_format = currency_format
-        ws[f'A{current_row}'].font = subheader_font
-    
-    # Adjust column widths
-    column_widths = [25, 15, 20, 15, 12, 12, 12, 10, 12, 12, 40]
-    for col, width in enumerate(column_widths, 1):
-        ws.column_dimensions[get_column_letter(col)].width = width
-    
-    # Save to BytesIO
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
-    
-    # Create response
-    response = HttpResponse(
-        output.read(),
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    filename = f"project_single_table_report_{start_date}_{end_date}.xlsx"
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    
-    return response
-
-    
-@login_required
-def get_report_summary(request):
-    """AJAX endpoint to get report summary data"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
-    
-    try:
-        # Get parameters
-        report_type = request.POST.get('report_type')
-        date_range = request.POST.get('date_range')
-        start_date = request.POST.get('start_date')
-        end_date = request.POST.get('end_date')
-        selected_date = request.POST.get('selected_date')
-        selected_month = request.POST.get('selected_month')
-        selected_year = request.POST.get('selected_year')
-        employee_id = request.POST.get('employee_id')
-        project_id = request.POST.get('project_id')
-        
-        # Determine date range
-        if date_range == 'daily':
-            if selected_date:
-                start_date = end_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
-            else:
-                start_date = end_date = date.today()
-        elif date_range == 'monthly':
-            if selected_month and selected_year:
-                year = int(selected_year)
-                month = int(selected_month)
-                start_date = date(year, month, 1)
-                end_date = date(year, month, calendar.monthrange(year, month)[1])
-            else:
-                today = date.today()
-                start_date = date(today.year, today.month, 1)
-                end_date = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
-        elif date_range == 'custom':
-            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
-        
-        # Filter work entries
-        work_entries = WorkEntry.objects.filter(
-            work_date__range=[start_date, end_date]
-        ).select_related('employee', 'project')
-        
-        if employee_id:
-            work_entries = work_entries.filter(employee_id=employee_id)
-        if project_id:
-            work_entries = work_entries.filter(project_id=project_id)
-        
-        # Calculate summary
-        total_hours = work_entries.aggregate(total=Sum('working_hours'))['total'] or 0
-        total_entries = work_entries.count()
-        unique_employees = work_entries.values('employee').distinct().count()
-        unique_projects = work_entries.values('project').distinct().count()
-        
-        return JsonResponse({
-            'success': True,
-            'summary': {
-                'total_hours': float(total_hours),
-                'total_entries': total_entries,
-                'unique_employees': unique_employees,
-                'unique_projects': unique_projects,
-                'date_range': f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
-            }
-        })
-        
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
-
-
-
-
-# new report format 
-
-def generate_employee_report(start_date, end_date, employee_id=None):
-    """Generate employee-wise Excel report with cost calculations"""
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Employee Work Report"
-    
-    # Set up styles
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-    subheader_font = Font(bold=True)
-    border = Border(left=Side(style='thin'), right=Side(style='thin'), 
-                   top=Side(style='thin'), bottom=Side(style='thin'))
-    
-    # Report header
-    ws['A1'] = "Employee Work Report"
-    ws['A1'].font = Font(bold=True, size=16)
-    ws['A2'] = f"Period: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}"
-    ws['A3'] = f"Generated on: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
-    
-    # Filter work entries
-    work_entries = WorkEntry.objects.filter(
-        work_date__range=[start_date, end_date]
-    ).select_related('employee', 'project')
-    
-    if employee_id:
-        work_entries = work_entries.filter(employee_id=employee_id)
-    
-    # Group by employee and calculate project costs
-    employees_data = {}
-    projects_cost = {}
-    total_report_cost = 0
-    
-    for entry in work_entries:
-        emp_key = entry.employee.id
-        project_key = entry.project.id
-        
-        if emp_key not in employees_data:
-            employees_data[emp_key] = {
-                'employee': entry.employee,
-                'entries': [],
-                'total_hours': 0,
-                'total_cost': 0,
-                'projects': set()
-            }
-        
-        entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
-        
-        employees_data[emp_key]['entries'].append({
-            'entry': entry,
-            'cost': entry_cost
-        })
-        employees_data[emp_key]['total_hours'] += float(entry.working_hours)
-        employees_data[emp_key]['total_cost'] += entry_cost
-        employees_data[emp_key]['projects'].add(entry.project.name)
-        
-        if project_key not in projects_cost:
-            projects_cost[project_key] = {
-                'project': entry.project,
-                'total_cost': 0,
-                'total_hours': 0
-            }
-        projects_cost[project_key]['total_cost'] += entry_cost
-        projects_cost[project_key]['total_hours'] += float(entry.working_hours)
-        
-        total_report_cost += entry_cost
-    
-    current_row = 5
-    
-    # Project Cost Summary Section
-    if projects_cost:
-        ws[f'A{current_row}'] = "PROJECT COST SUMMARY"
-        ws[f'A{current_row}'].font = Font(bold=True, size=14)
-        current_row += 1
-        
-        project_headers = ['Project ID', 'Project Name', 'Total Hours', 'Total Cost ($)']
-        for col, header in enumerate(project_headers, 1):
-            cell = ws.cell(row=current_row, column=col, value=header)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.border = border
-            cell.alignment = Alignment(horizontal='center')
-        
-        current_row += 1
-        
-        for project_data in sorted(projects_cost.values(), key=lambda x: x['project'].name):
-            project = project_data['project']
-            ws[f'A{current_row}'] = project.project_id
-            ws[f'B{current_row}'] = project.name
-            ws[f'C{current_row}'] = float(project_data['total_hours'])
-            ws[f'D{current_row}'] = float(project_data['total_cost'])
-            
-            for col in range(1, 5):
-                ws.cell(row=current_row, column=col).border = border
-            
-            current_row += 1
-        
-        current_row += 2
-        
-        ws[f'A{current_row}'] = "EMPLOYEE WORK DETAILS"
-        ws[f'A{current_row}'].font = Font(bold=True, size=14)
-        current_row += 2
-    
-    # Employee data section
-    for emp_data in employees_data.values():
-        employee = emp_data['employee']
-        
-        ws[f'A{current_row}'] = f"Employee ID: {employee.employee_id or 'N/A'}"
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Employee: {employee.first_name} {employee.last_name or ''}"
-        ws[f'A{current_row}'].font = subheader_font
-        ws[f'E{current_row}'] = f"Total Hours: {emp_data['total_hours']:.2f}"
-        ws[f'E{current_row}'].font = subheader_font
-        ws[f'G{current_row}'] = f"Total Cost: ${emp_data['total_cost']:.2f}"
-        ws[f'G{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Designation: {employee.designation or 'N/A'}"
-        ws[f'E{current_row}'] = f"Projects: {len(emp_data['projects'])}"
-        ws[f'G{current_row}'] = f"Hourly Rate: ${employee.man_hour_of_employee:.2f}"
-        current_row += 1
-        
-        current_row += 1
-        headers = ['Date', 'Project ID', 'Project', 'Start Time', 'End Time', 'Hours', 'Cost ($)', 'Description']
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=current_row, column=col, value=header)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.border = border
-            cell.alignment = Alignment(horizontal='center')
-        
-        current_row += 1
-        
-        for entry_data in sorted(emp_data['entries'], key=lambda x: x['entry'].work_date):
-            entry = entry_data['entry']
-            entry_cost = entry_data['cost']
-            
-            ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
-            ws[f'B{current_row}'] = entry.project.project_id
-            ws[f'C{current_row}'] = entry.project.name
-            ws[f'D{current_row}'] = entry.start_time.strftime('%H:%M')
-            ws[f'E{current_row}'] = entry.end_time.strftime('%H:%M')
-            ws[f'F{current_row}'] = float(entry.working_hours)
-            ws[f'G{current_row}'] = float(entry_cost)
-            ws[f'H{current_row}'] = entry.description
-            
-            for col in range(1, 9):
-                ws.cell(row=current_row, column=col).border = border
-            
-            current_row += 1
-        
-        current_row += 2
-    
-    # Overall summary
-    if employees_data:
-        ws[f'A{current_row}'] = "OVERALL REPORT SUMMARY"
-        ws[f'A{current_row}'].font = Font(bold=True, size=14)
-        current_row += 1
-        
-        total_hours_all = sum(emp_data['total_hours'] for emp_data in employees_data.values())
-        total_employees = len(employees_data)
-        total_projects = len(projects_cost)
-        
-        ws[f'A{current_row}'] = f"Total Employees: {total_employees}"
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Total Projects: {total_projects}"
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Total Hours Worked: {total_hours_all:.2f}"
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Total Cost: ${total_report_cost:.2f}"
-        ws[f'A{current_row}'].font = Font(bold=True, size=12, color="FF0000")
-        current_row += 1
-    
-    # Adjust column widths
-    column_widths = [15, 15, 25, 12, 12, 10, 15, 40]
-    for col, width in enumerate(column_widths, 1):
-        ws.column_dimensions[get_column_letter(col)].width = width
-    
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
-    
-    response = HttpResponse(
-        output.read(),
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    filename = f"employee_report_with_cost_{start_date}_{end_date}.xlsx"
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    
-    return response
-
-
-
-def generate_project_report(start_date, end_date, project_id=None):
-    """Generate project-wise Excel report with cost calculations"""
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Project Work Report"
-    
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-    subheader_font = Font(bold=True)
-    border = Border(left=Side(style='thin'), right=Side(style='thin'), 
-                   top=Side(style='thin'), bottom=Side(style='thin'))
-    
-    ws['A1'] = "Project Work Report"
-    ws['A1'].font = Font(bold=True, size=16)
-    ws['A2'] = f"Period: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}"
-    ws['A3'] = f"Generated on: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
-    
-    work_entries = WorkEntry.objects.filter(
-        work_date__range=[start_date, end_date]
-    ).select_related('employee', 'project')
-    
-    if project_id:
-        work_entries = work_entries.filter(project_id=project_id)
-    
-    projects_data = {}
-    employees_cost = {}
-    total_report_cost = 0
-    
-    for entry in work_entries:
-        proj_key = entry.project.id
-        emp_key = entry.employee.id
-        
-        if proj_key not in projects_data:
-            projects_data[proj_key] = {
-                'project': entry.project,
-                'entries': [],
-                'total_hours': 0,
-                'total_cost': 0,
-                'employees': set()
-            }
-        
-        entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
-        
-        projects_data[proj_key]['entries'].append({
-            'entry': entry,
-            'cost': entry_cost
-        })
-        projects_data[proj_key]['total_hours'] += float(entry.working_hours)
-        projects_data[proj_key]['total_cost'] += entry_cost
-        projects_data[proj_key]['employees'].add(f"{entry.employee.first_name} {entry.employee.last_name or ''}")
-        
-        if emp_key not in employees_cost:
-            employees_cost[emp_key] = {
-                'employee': entry.employee,
-                'total_cost': 0,
-                'total_hours': 0
-            }
-        employees_cost[emp_key]['total_cost'] += entry_cost
-        employees_cost[emp_key]['total_hours'] += float(entry.working_hours)
-        
-        total_report_cost += entry_cost
-    
-    current_row = 5
-    
-    if employees_cost:
-        ws[f'A{current_row}'] = "EMPLOYEE COST SUMMARY"
-        ws[f'A{current_row}'].font = Font(bold=True, size=14)
-        current_row += 1
-        
-        employee_headers = ['Employee ID', 'Employee Name', 'Designation', 'Hourly Rate ($)', 'Total Hours', 'Total Cost ($)']
-        for col, header in enumerate(employee_headers, 1):
-            cell = ws.cell(row=current_row, column=col, value=header)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.border = border
-            cell.alignment = Alignment(horizontal='center')
-        
-        current_row += 1
-        
-        for employee_data in sorted(employees_cost.values(), key=lambda x: x['employee'].first_name):
-            employee = employee_data['employee']
-            ws[f'A{current_row}'] = employee.employee_id or 'N/A'
-            ws[f'B{current_row}'] = f"{employee.first_name} {employee.last_name or ''}"
-            ws[f'C{current_row}'] = employee.designation or 'N/A'
-            ws[f'D{current_row}'] = float(employee.man_hour_of_employee)
-            ws[f'E{current_row}'] = float(employee_data['total_hours'])
-            ws[f'F{current_row}'] = float(employee_data['total_cost'])
-            
-            for col in range(1, 7):
-                ws.cell(row=current_row, column=col).border = border
-            
-            current_row += 1
-        
-        current_row += 2
-        ws[f'A{current_row}'] = "PROJECT WORK DETAILS"
-        ws[f'A{current_row}'].font = Font(bold=True, size=14)
-        current_row += 2
-    
-    for proj_data in projects_data.values():
-        project = proj_data['project']
-        
-        ws[f'A{current_row}'] = f"Project: {project.name} ({project.project_id})"
-        ws[f'A{current_row}'].font = subheader_font
-        ws[f'E{current_row}'] = f"Total Hours: {proj_data['total_hours']:.2f}"
-        ws[f'E{current_row}'].font = subheader_font
-        ws[f'G{current_row}'] = f"Total Cost: ${proj_data['total_cost']:.2f}"
-        ws[f'G{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Status: {project.status.title()}"
-        ws[f'E{current_row}'] = f"Team Members: {len(proj_data['employees'])}"
-        current_row += 1
-        
-        current_row += 1
-        headers = ['Date', 'Employee ID', 'Employee', 'Start Time', 'End Time', 'Hours', 'Cost ($)', 'Description']
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=current_row, column=col, value=header)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.border = border
-            cell.alignment = Alignment(horizontal='center')
-        
-        current_row += 1
-        
-        for entry_data in sorted(proj_data['entries'], key=lambda x: x['entry'].work_date):
-            entry = entry_data['entry']
-            entry_cost = entry_data['cost']
-            
-            ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
-            ws[f'B{current_row}'] = entry.employee.employee_id or 'N/A'
-            ws[f'C{current_row}'] = f"{entry.employee.first_name} {entry.employee.last_name or ''}"
-            ws[f'D{current_row}'] = entry.start_time.strftime('%H:%M')
-            ws[f'E{current_row}'] = entry.end_time.strftime('%H:%M')
-            ws[f'F{current_row}'] = float(entry.working_hours)
-            ws[f'G{current_row}'] = float(entry_cost)
-            ws[f'H{current_row}'] = entry.description
-            
-            for col in range(1, 9):
-                ws.cell(row=current_row, column=col).border = border
-            
-            current_row += 1
-        
-        current_row += 2
-    
-    if projects_data:
-        ws[f'A{current_row}'] = "OVERALL REPORT SUMMARY"
-        ws[f'A{current_row}'].font = Font(bold=True, size=14)
-        current_row += 1
-        
-        total_hours_all = sum(proj_data['total_hours'] for proj_data in projects_data.values())
-        total_projects = len(projects_data)
-        total_employees = len(employees_cost)
-        
-        ws[f'A{current_row}'] = f"Total Projects: {total_projects}"
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Total Employees: {total_employees}"
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Total Hours Worked: {total_hours_all:.2f}"
-        ws[f'A{current_row}'].font = subheader_font
-        current_row += 1
-        
-        ws[f'A{current_row}'] = f"Total Cost: ${total_report_cost:.2f}"
-        ws[f'A{current_row}'].font = Font(bold=True, size=12, color="FF0000")
-    
-    column_widths = [15, 15, 25, 12, 12, 10, 15, 40]
-    for col, width in enumerate(column_widths, 1):
-        ws.column_dimensions[get_column_letter(col)].width = width
-    
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
-    
-    response = HttpResponse(
-        output.read(),
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
-    filename = f"project_report_with_cost_{start_date}_{end_date}.xlsx"
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    
-    return response
 

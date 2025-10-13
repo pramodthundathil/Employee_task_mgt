@@ -198,11 +198,12 @@
                                         <i class="fas fa-edit"></i>
                             </a>
                                     {% endif %}
-                                    <button class="btn btn-sm btn-outline-danger" 
-                                            onclick="deleteEntry({{ entry.id }})"
+                                    <a class="btn btn-sm btn-outline-danger" 
+                                            onclick="return confirm('Are you sure want to delete work entry')"
+                                            href="{% url 'delete_work_entry' entry.id %}"
                                             title="Delete Entry">
                                         <i class="fas fa-trash"></i>
-                                    </button>
+                        </a>
                                 </div>
                             </td>
                         </tr>
