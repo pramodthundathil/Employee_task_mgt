@@ -226,10 +226,10 @@ def employee_management(request):
         return redirect('employee_dashboard')
     if request.user.role == "admin":
         
-        employees = CustomUser.objects.filter(role__in =['user', 'semi-admin']).order_by('employee_id')
+        employees = CustomUser.objects.filter(role__in =['user', 'semi-admin']).order_by('first_name')
     else:
         location = request.user.work_location
-        employees = CustomUser.objects.filter(role__in =['user', 'semi-admin'], work_location = location).order_by('employee_id')
+        employees = CustomUser.objects.filter(role__in =['user', 'semi-admin'], work_location = location).order_by('first_name')
     form = CustomUserForm(current_user=request.user)  # For the add employee modal
     work_locations = WorkLocation.objects.all()
     context = {
@@ -959,12 +959,12 @@ def work_entry_management(request):
     if request.user.role == 'semi-admin':
         location = request.user.work_location
 
-        employees = User.objects.filter(role='user',work_location = location, is_active=True)
-        projects = Project.objects.filter(work_location = location)
+        employees = User.objects.filter(role='user',work_location = location, is_active=True).order_by('first_name')
+        projects = Project.objects.filter(work_location = location).order_by('project_id')
     else:
         
-        employees = User.objects.filter(role='user', is_active=True)
-        projects = Project.objects.all()
+        employees = User.objects.filter(role='user', is_active=True).order_by('first_name')
+        projects = Project.objects.all().order_by('project_id')
   
     try:
         if request.method == "POST":
@@ -1880,12 +1880,12 @@ def reports(request):
         ).order_by('project__name')
     
     if request.user.role == 'semi-admin':
-        projects = Project.objects.filter(work_location = location)
-        employees = CustomUser.objects.filter(role='user', is_active=True, work_location = location)
+        projects = Project.objects.filter(work_location = location).order_by("project_id")
+        employees = CustomUser.objects.filter(role='user', is_active=True, work_location = location).order_by("first_name")
 
     else:
-        employees = CustomUser.objects.filter(role='user', is_active=True)
-        projects = Project.objects.all()
+        employees = CustomUser.objects.filter(role='user', is_active=True).order_by("first_name")
+        projects = Project.objects.all().order_by("project_id")
     
     context = {
         'report_data': report_data,
@@ -1900,30 +1900,36 @@ def reports(request):
 
 
 
+@login_required
 def download_reports(request):
+    """Reports dashboard with work location support"""
     if request.user.role == 'semi-admin':
         location = request.user.work_location
-        projects = Project.objects.filter(work_location = location)
-        employees = CustomUser.objects.filter(is_active=True, work_location = location).order_by('first_name')
+        projects = Project.objects.filter(work_location=location).order_by("project_id")
+        employees = CustomUser.objects.filter(is_active=True, work_location=location).order_by('first_name')
+        work_locations = WorkLocation.objects.filter(id=location.id)
     else:
-        projects = Project.objects.all()
+        projects = Project.objects.all().order_by("project_id")
         employees = CustomUser.objects.filter(is_active=True).order_by('first_name')
+        work_locations = WorkLocation.objects.all()
+    
     context = {
         'projects': projects,
         'employees': employees,
+        'work_locations': work_locations,
         'current_date': date.today(),
     }
-    return render(request,"admin/download_reports.html", context)
+    return render(request, "admin/download_reports.html", context)
 
 @login_required
 def reports_dashboard(request):
     """Main reports dashboard view"""
     if request.user.role == 'semi-admin':
         location = request.user.work_location
-        projects = Project.objects.filter(work_location = location)
+        projects = Project.objects.filter(work_location = location).order_by("project_id")
         employees = CustomUser.objects.filter(is_active=True, work_location = location).order_by('first_name')
     else:
-        projects = Project.objects.all()
+        projects = Project.objects.all().order_by("project_id")
         employees = CustomUser.objects.filter(is_active=True).order_by('first_name')
     context = {
         'projects': projects,
@@ -1939,8 +1945,8 @@ def generate_report(request):
         return redirect('reports_dashboard')
     
     # Get form parameters
-    report_type = request.POST.get('report_type')  # 'employee' or 'project'
-    date_range = request.POST.get('date_range')   # 'daily', 'monthly', 'custom'
+    report_type = request.POST.get('report_type')
+    date_range = request.POST.get('date_range')
     start_date = request.POST.get('start_date')
     end_date = request.POST.get('end_date')
     selected_date = request.POST.get('selected_date')
@@ -1948,6 +1954,7 @@ def generate_report(request):
     selected_year = request.POST.get('selected_year')
     employee_id = request.POST.get('employee_id')
     project_id = request.POST.get('project_id')
+    work_location_id = request.POST.get('work_location_id')  # NEW
     report_format = request.POST.get("report_format")
 
     try:
@@ -1973,33 +1980,30 @@ def generate_report(request):
                 end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
             else:
                 messages.error(request, 'Please provide both start and end dates for custom range.')
-                return redirect('reports_dashboard')
+                return redirect('download_reports')
         
         # Generate report based on type
         if report_type == 'employee':
             if report_format == 'Full':
-                return generate_employee_single_table_report(request, start_date, end_date, employee_id)
+                return generate_employee_single_table_report(request, start_date, end_date, employee_id, work_location_id)
             else:
-                return generate_employee_report(request, start_date, end_date, employee_id)
-
+                return generate_employee_report(request, start_date, end_date, employee_id, work_location_id)
         elif report_type == 'project':
             if report_format == 'Full':
-                return generate_project_single_table_report(request, start_date, end_date, project_id)
+                return generate_project_single_table_report(request, start_date, end_date, project_id, work_location_id)
             else:
-                return generate_project_report(request, start_date, end_date, project_id)
-
+                return generate_project_report(request, start_date, end_date, project_id, work_location_id)
         else:
             messages.error(request, 'Invalid report type selected.')
-            return redirect('reports_dashboard')
+            return redirect('download_reports')
             
     except Exception as e:
         messages.error(request, f'Error generating report: {str(e)}')
-        return redirect('reports_dashboard')
+        return redirect('download_reports')
 
 
-def generate_employee_single_table_report(request, start_date, end_date, employee_id=None):
+def generate_employee_single_table_report(request, start_date, end_date, employee_id=None, work_location_id=None):
     """Generate employee-wise Excel report with cost calculations in single table format"""
-    # Create workbook and worksheet
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Employee Work Report"
@@ -2017,7 +2021,7 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
     ws['A2'] = f"Period: {start_date.strftime('%B %d, %Y')} to {end_date.strftime('%B %d, %Y')}"
     ws['A3'] = f"Generated on: {datetime.now().strftime('%B %d, %Y at %I:%M %p')}"
     
-    # Filter work entries based on user role
+    # Filter work entries based on user role and work location
     if request.user.role == 'semi-admin':
         location = request.user.work_location
         work_entries = WorkEntry.objects.filter(
@@ -2028,9 +2032,21 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
         work_entries = WorkEntry.objects.filter(
             work_date__range=[start_date, end_date]
         ).select_related('employee', 'project').order_by('employee__first_name', 'work_date')
+        
+        # Apply work location filter if specified
+        if work_location_id:
+            work_entries = work_entries.filter(employee__work_location_id=work_location_id)
     
     if employee_id:
         work_entries = work_entries.filter(employee_id=employee_id)
+    
+    # Add location info to header
+    if work_location_id:
+        try:
+            location_obj = WorkLocation.objects.get(id=work_location_id)
+            ws['A4'] = f"Location: {location_obj.get_location_display()}"
+        except WorkLocation.DoesNotExist:
+            pass
     
     # Calculate summary data
     employees_data = {}
@@ -2049,14 +2065,12 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
                 'projects': set()
             }
         
-        # Calculate cost for this entry
         entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
         
         employees_data[emp_key]['total_hours'] += float(entry.working_hours)
         employees_data[emp_key]['total_cost'] += entry_cost
         employees_data[emp_key]['projects'].add(entry.project.name)
         
-        # Track project costs
         if project_key not in projects_cost:
             projects_cost[project_key] = {
                 'project': entry.project,
@@ -2069,7 +2083,7 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
         total_report_cost += entry_cost
     
     # Start writing data
-    current_row = 5
+    current_row = 6 if work_location_id else 5
     
     # Employee Cost Summary Section
     if employees_data:
@@ -2078,7 +2092,7 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
         current_row += 1
         
         # Employee table headers
-        employee_headers = ['Employee Name', 'Designation', 'Hourly Rate ($)', 'Total Hours', 'Total Cost ($)']
+        employee_headers = ['Employee Name', 'Designation', 'Location', 'Hourly Rate ($)', 'Total Hours', 'Total Cost ($)']
         for col, header in enumerate(employee_headers, 1):
             cell = ws.cell(row=current_row, column=col, value=header)
             cell.font = header_font
@@ -2093,17 +2107,17 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
             employee = employee_data['employee']
             ws[f'A{current_row}'] = f"{employee.first_name} {employee.last_name or ''}"
             ws[f'B{current_row}'] = employee.designation or 'N/A'
-            ws[f'C{current_row}'] = float(employee.man_hour_of_employee)
-            ws[f'D{current_row}'] = float(employee_data['total_hours'])
-            ws[f'E{current_row}'] = float(employee_data['total_cost'])
+            ws[f'C{current_row}'] = employee.work_location.get_location_display() if employee.work_location else 'N/A'
+            ws[f'D{current_row}'] = float(employee.man_hour_of_employee)
+            ws[f'E{current_row}'] = float(employee_data['total_hours'])
+            ws[f'F{current_row}'] = float(employee_data['total_cost'])
             
-            # Apply borders
-            for col in range(1, 6):
+            for col in range(1, 7):
                 ws.cell(row=current_row, column=col).border = border
             
             current_row += 1
         
-        current_row += 2  # Space after employee summary
+        current_row += 2
     
     # Single Employee Work Table
     ws[f'A{current_row}'] = "EMPLOYEE WORK DETAILS"
@@ -2111,7 +2125,7 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
     current_row += 2
     
     # Single table headers
-    headers = ['Date', 'Employee Name', 'Designation', 'Project', 'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description']
+    headers = ['Date', 'Employee Name', 'Designation', 'Location', 'Project', 'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=current_row, column=col, value=header)
         cell.font = header_font
@@ -2127,23 +2141,23 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
         ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
         ws[f'B{current_row}'] = f"{entry.employee.first_name} {entry.employee.last_name or ''}"
         ws[f'C{current_row}'] = entry.employee.designation or 'N/A'
-        ws[f'D{current_row}'] = entry.project.name
-        ws[f'E{current_row}'] = entry.start_time.strftime('%H:%M')
-        ws[f'F{current_row}'] = entry.end_time.strftime('%H:%M')
-        ws[f'G{current_row}'] = float(entry.working_hours)
-        ws[f'H{current_row}'] = float(entry.employee.man_hour_of_employee)
-        ws[f'I{current_row}'] = float(entry_cost)
-        ws[f'J{current_row}'] = entry.description
+        ws[f'D{current_row}'] = entry.employee.work_location.get_location_display() if entry.employee.work_location else 'N/A'
+        ws[f'E{current_row}'] = entry.project.name
+        ws[f'F{current_row}'] = entry.start_time.strftime('%H:%M')
+        ws[f'G{current_row}'] = entry.end_time.strftime('%H:%M')
+        ws[f'H{current_row}'] = float(entry.working_hours)
+        ws[f'I{current_row}'] = float(entry.employee.man_hour_of_employee)
+        ws[f'J{current_row}'] = float(entry_cost)
+        ws[f'K{current_row}'] = entry.description
         
-        # Apply borders
-        for col in range(1, 11):
+        for col in range(1, 12):
             ws.cell(row=current_row, column=col).border = border
         
         current_row += 1
     
-    current_row += 2  # Space before summary
+    current_row += 2
     
-    # Add total report summary
+    # Add total report summary (same as before)
     if employees_data:
         ws[f'A{current_row}'] = "OVERALL REPORT SUMMARY"
         ws[f'A{current_row}'].font = Font(bold=True, size=14)
@@ -2174,7 +2188,6 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
         ws[f'A{current_row}'].font = Font(bold=True, size=12, color="FF0000")
         current_row += 1
         
-        # Average calculations
         avg_hours_per_employee = total_hours_all / total_employees if total_employees > 0 else 0
         avg_cost_per_employee = total_report_cost / total_employees if total_employees > 0 else 0
         
@@ -2186,7 +2199,7 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
         ws[f'A{current_row}'].font = subheader_font
     
     # Adjust column widths
-    column_widths = [20, 15, 25, 12, 12, 12, 10, 12, 12, 40]
+    column_widths = [12, 20, 15, 12, 25, 12, 12, 10, 12, 12, 40]
     for col, width in enumerate(column_widths, 1):
         ws.column_dimensions[get_column_letter(col)].width = width
     
@@ -2200,15 +2213,16 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
         output.read(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    filename = f"employee_single_table_report_{start_date}_{end_date}.xlsx"
+    
+    location_suffix = f"_{work_location_id}" if work_location_id else ""
+    filename = f"employee_single_table_report_{start_date}_{end_date}{location_suffix}.xlsx"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     return response
 
 
-def generate_project_single_table_report(request, start_date, end_date, project_id=None):
+def generate_project_single_table_report(request, start_date, end_date, project_id=None, work_location_id=None):
     """Generate project-wise Excel report with cost calculations in single table format"""
-    # Create workbook and worksheet
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Project Work Report"
@@ -2220,7 +2234,6 @@ def generate_project_single_table_report(request, start_date, end_date, project_
     border = Border(left=Side(style='thin'), right=Side(style='thin'), 
                    top=Side(style='thin'), bottom=Side(style='thin'))
     
-    # Number formatting styles
     number_format = '#,##0.00'
     currency_format = '$#,##0.00'
     hour_format = '#,##0.00'
@@ -2237,14 +2250,26 @@ def generate_project_single_table_report(request, start_date, end_date, project_
         work_entries = WorkEntry.objects.filter(
             work_date__range=[start_date, end_date],
             employee__work_location=location
-        ).select_related('employee', 'project').order_by('project__name', 'work_date')
+        ).select_related('employee', 'project').order_by('project__project_id', 'work_date')
     else:
         work_entries = WorkEntry.objects.filter(
             work_date__range=[start_date, end_date]
-        ).select_related('employee', 'project').order_by('project__name', 'work_date')
+        ).select_related('employee', 'project').order_by('project__project_id', 'work_date')
+        
+        # Apply work location filter if specified
+        if work_location_id:
+            work_entries = work_entries.filter(employee__work_location_id=work_location_id)
     
     if project_id:
         work_entries = work_entries.filter(project_id=project_id)
+    
+    # Add location info to header
+    if work_location_id:
+        try:
+            location_obj = WorkLocation.objects.get(id=work_location_id)
+            ws['A4'] = f"Location: {location_obj.get_location_display()}"
+        except WorkLocation.DoesNotExist:
+            pass
     
     # Calculate summary data
     projects_data = {}
@@ -2263,14 +2288,12 @@ def generate_project_single_table_report(request, start_date, end_date, project_
                 'employees': set()
             }
         
-        # Calculate cost for this entry
         entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
         
         projects_data[proj_key]['total_hours'] += float(entry.working_hours)
         projects_data[proj_key]['total_cost'] += entry_cost
         projects_data[proj_key]['employees'].add(f"{entry.employee.first_name} {entry.employee.last_name or ''}")
         
-        # Track employee costs
         if emp_key not in employees_cost:
             employees_cost[emp_key] = {
                 'employee': entry.employee,
@@ -2283,7 +2306,7 @@ def generate_project_single_table_report(request, start_date, end_date, project_
         total_report_cost += entry_cost
     
     # Start writing data
-    current_row = 5
+    current_row = 6 if work_location_id else 5
     
     # Project Cost Summary Section
     if projects_data:
@@ -2291,8 +2314,7 @@ def generate_project_single_table_report(request, start_date, end_date, project_
         ws[f'A{current_row}'].font = Font(bold=True, size=14)
         current_row += 1
         
-        # Project table headers
-        project_headers = ['Project ID', 'Project Name', 'Total Hours', 'Total Cost']
+        project_headers = ['Project ID', 'Project Name', 'Location', 'Total Hours', 'Total Cost']
         for col, header in enumerate(project_headers, 1):
             cell = ws.cell(row=current_row, column=col, value=header)
             cell.font = header_font
@@ -2302,22 +2324,22 @@ def generate_project_single_table_report(request, start_date, end_date, project_
         
         current_row += 1
         
-        # Project data rows
         for project_data in sorted(projects_data.values(), key=lambda x: x['project'].name):
             project = project_data['project']
             
             ws[f'A{current_row}'] = project.project_id
             ws[f'B{current_row}'] = project.name
+            ws[f'C{current_row}'] = project.work_location.get_location_display() if project.work_location else 'N/A'
             
-            hours_cell = ws[f'C{current_row}']
+            hours_cell = ws[f'D{current_row}']
             hours_cell.value = project_data['total_hours']
             hours_cell.number_format = hour_format
             
-            cost_cell = ws[f'D{current_row}']
+            cost_cell = ws[f'E{current_row}']
             cost_cell.value = project_data['total_cost']
             cost_cell.number_format = currency_format
             
-            for col in range(1, 5):
+            for col in range(1, 6):
                 ws.cell(row=current_row, column=col).border = border
             
             current_row += 1
@@ -2330,7 +2352,7 @@ def generate_project_single_table_report(request, start_date, end_date, project_
     current_row += 2
     
     # Single table headers
-    headers = ['Date', 'Project Name', 'Project ID', 'Employee', 'Designation', 'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description']
+    headers = ['Date', 'Project Name', 'Project ID', 'Project Location', 'Employee', 'Designation', 'Emp Location', 'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description']
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=current_row, column=col, value=header)
         cell.font = header_font
@@ -2347,26 +2369,28 @@ def generate_project_single_table_report(request, start_date, end_date, project_
         ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
         ws[f'B{current_row}'] = entry.project.name
         ws[f'C{current_row}'] = entry.project.project_id
-        ws[f'D{current_row}'] = f"{entry.employee.first_name} {entry.employee.last_name or ''}"
-        ws[f'E{current_row}'] = entry.employee.designation or 'N/A'
-        ws[f'F{current_row}'] = entry.start_time.strftime('%H:%M')
-        ws[f'G{current_row}'] = entry.end_time.strftime('%H:%M')
+        ws[f'D{current_row}'] = entry.project.work_location.get_location_display() if entry.project.work_location else 'N/A'
+        ws[f'E{current_row}'] = f"{entry.employee.first_name} {entry.employee.last_name or ''}"
+        ws[f'F{current_row}'] = entry.employee.designation or 'N/A'
+        ws[f'G{current_row}'] = entry.employee.work_location.get_location_display() if entry.employee.work_location else 'N/A'
+        ws[f'H{current_row}'] = entry.start_time.strftime('%H:%M')
+        ws[f'I{current_row}'] = entry.end_time.strftime('%H:%M')
         
-        hours_cell = ws[f'H{current_row}']
+        hours_cell = ws[f'J{current_row}']
         hours_cell.value = float(entry.working_hours)
         hours_cell.number_format = hour_format
         
-        rate_cell = ws[f'I{current_row}']
+        rate_cell = ws[f'K{current_row}']
         rate_cell.value = float(entry.employee.man_hour_of_employee)
         rate_cell.number_format = currency_format
         
-        cost_cell = ws[f'J{current_row}']
+        cost_cell = ws[f'L{current_row}']
         cost_cell.value = entry_cost
         cost_cell.number_format = currency_format
         
-        ws[f'K{current_row}'] = entry.description
+        ws[f'M{current_row}'] = entry.description
         
-        for col in range(1, 12):
+        for col in range(1, 14):
             ws.cell(row=current_row, column=col).border = border
         
         current_row += 1
@@ -2436,7 +2460,7 @@ def generate_project_single_table_report(request, start_date, end_date, project_
         ws[f'A{current_row}'].font = subheader_font
     
     # Adjust column widths
-    column_widths = [25, 15, 20, 15, 12, 12, 12, 10, 12, 12, 40]
+    column_widths = [12, 25, 15, 15, 20, 15, 12, 12, 12, 10, 12, 12, 40]
     for col, width in enumerate(column_widths, 1):
         ws.column_dimensions[get_column_letter(col)].width = width
     
@@ -2450,14 +2474,16 @@ def generate_project_single_table_report(request, start_date, end_date, project_
         output.read(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    filename = f"project_single_table_report_{start_date}_{end_date}.xlsx"
+    
+    location_suffix = f"_{work_location_id}" if work_location_id else ""
+    filename = f"project_single_table_report_{start_date}_{end_date}{location_suffix}.xlsx"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     return response
 
 
-def generate_employee_report(request, start_date, end_date, employee_id=None):
-    """Generate employee-wise Excel report with cost calculations"""
+def generate_employee_report(request, start_date, end_date, employee_id=None, work_location_id=None):
+    """Generate employee-wise Excel report with cost calculations (Tables format)"""
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Employee Work Report"
@@ -2486,9 +2512,21 @@ def generate_employee_report(request, start_date, end_date, employee_id=None):
         work_entries = WorkEntry.objects.filter(
             work_date__range=[start_date, end_date]
         ).select_related('employee', 'project')
+        
+        # Apply work location filter if specified
+        if work_location_id:
+            work_entries = work_entries.filter(employee__work_location_id=work_location_id)
     
     if employee_id:
         work_entries = work_entries.filter(employee_id=employee_id)
+    
+    # Add location info to header
+    if work_location_id:
+        try:
+            location_obj = WorkLocation.objects.get(id=work_location_id)
+            ws['A4'] = f"Location: {location_obj.get_location_display()}"
+        except WorkLocation.DoesNotExist:
+            pass
     
     # Group by employee and calculate project costs
     employees_data = {}
@@ -2529,7 +2567,7 @@ def generate_employee_report(request, start_date, end_date, employee_id=None):
         
         total_report_cost += entry_cost
     
-    current_row = 5
+    current_row = 6 if work_location_id else 5
     
     # Project Cost Summary Section
     if projects_cost:
@@ -2537,7 +2575,7 @@ def generate_employee_report(request, start_date, end_date, employee_id=None):
         ws[f'A{current_row}'].font = Font(bold=True, size=14)
         current_row += 1
         
-        project_headers = ['Project ID', 'Project Name', 'Total Hours', 'Total Cost ($)']
+        project_headers = ['Project ID', 'Project Name', 'Location', 'Total Hours', 'Total Cost ($)']
         for col, header in enumerate(project_headers, 1):
             cell = ws.cell(row=current_row, column=col, value=header)
             cell.font = header_font
@@ -2551,10 +2589,11 @@ def generate_employee_report(request, start_date, end_date, employee_id=None):
             project = project_data['project']
             ws[f'A{current_row}'] = project.project_id
             ws[f'B{current_row}'] = project.name
-            ws[f'C{current_row}'] = float(project_data['total_hours'])
-            ws[f'D{current_row}'] = float(project_data['total_cost'])
+            ws[f'C{current_row}'] = project.work_location.get_location_display() if project.work_location else 'N/A'
+            ws[f'D{current_row}'] = float(project_data['total_hours'])
+            ws[f'E{current_row}'] = float(project_data['total_cost'])
             
-            for col in range(1, 5):
+            for col in range(1, 6):
                 ws.cell(row=current_row, column=col).border = border
             
             current_row += 1
@@ -2566,7 +2605,7 @@ def generate_employee_report(request, start_date, end_date, employee_id=None):
         current_row += 2
     
     # Employee data section
-    for emp_data in employees_data.values():
+    for emp_data in sorted(employees_data.values(), key=lambda x: x['employee'].first_name):
         employee = emp_data['employee']
         
         ws[f'A{current_row}'] = f"Employee ID: {employee.employee_id or 'N/A'}"
@@ -2584,6 +2623,9 @@ def generate_employee_report(request, start_date, end_date, employee_id=None):
         ws[f'A{current_row}'] = f"Designation: {employee.designation or 'N/A'}"
         ws[f'E{current_row}'] = f"Projects: {len(emp_data['projects'])}"
         ws[f'G{current_row}'] = f"Hourly Rate: ${employee.man_hour_of_employee:.2f}"
+        current_row += 1
+        
+        ws[f'A{current_row}'] = f"Location: {employee.work_location.get_location_display() if employee.work_location else 'N/A'}"
         current_row += 1
         
         current_row += 1
@@ -2641,7 +2683,6 @@ def generate_employee_report(request, start_date, end_date, employee_id=None):
         
         ws[f'A{current_row}'] = f"Total Cost: ${total_report_cost:.2f}"
         ws[f'A{current_row}'].font = Font(bold=True, size=12, color="FF0000")
-        current_row += 1
     
     # Adjust column widths
     column_widths = [15, 15, 25, 12, 12, 10, 15, 40]
@@ -2656,14 +2697,16 @@ def generate_employee_report(request, start_date, end_date, employee_id=None):
         output.read(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    filename = f"employee_report_with_cost_{start_date}_{end_date}.xlsx"
+    
+    location_suffix = f"_{work_location_id}" if work_location_id else ""
+    filename = f"employee_report_with_cost_{start_date}_{end_date}{location_suffix}.xlsx"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     return response
 
 
-def generate_project_report(request, start_date, end_date, project_id=None):
-    """Generate project-wise Excel report with cost calculations"""
+def generate_project_report(request, start_date, end_date, project_id=None, work_location_id=None):
+    """Generate project-wise Excel report with cost calculations (Tables format)"""
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Project Work Report"
@@ -2690,9 +2733,21 @@ def generate_project_report(request, start_date, end_date, project_id=None):
         work_entries = WorkEntry.objects.filter(
             work_date__range=[start_date, end_date]
         ).select_related('employee', 'project')
+        
+        # Apply work location filter if specified
+        if work_location_id:
+            work_entries = work_entries.filter(employee__work_location_id=work_location_id)
     
     if project_id:
         work_entries = work_entries.filter(project_id=project_id)
+    
+    # Add location info to header
+    if work_location_id:
+        try:
+            location_obj = WorkLocation.objects.get(id=work_location_id)
+            ws['A4'] = f"Location: {location_obj.get_location_display()}"
+        except WorkLocation.DoesNotExist:
+            pass
     
     projects_data = {}
     employees_cost = {}
@@ -2732,14 +2787,14 @@ def generate_project_report(request, start_date, end_date, project_id=None):
         
         total_report_cost += entry_cost
     
-    current_row = 5
+    current_row = 6 if work_location_id else 5
     
     if employees_cost:
         ws[f'A{current_row}'] = "EMPLOYEE COST SUMMARY"
         ws[f'A{current_row}'].font = Font(bold=True, size=14)
         current_row += 1
         
-        employee_headers = ['Employee ID', 'Employee Name', 'Designation', 'Hourly Rate ($)', 'Total Hours', 'Total Cost ($)']
+        employee_headers = ['Employee ID', 'Employee Name', 'Designation', 'Location', 'Hourly Rate ($)', 'Total Hours', 'Total Cost ($)']
         for col, header in enumerate(employee_headers, 1):
             cell = ws.cell(row=current_row, column=col, value=header)
             cell.font = header_font
@@ -2754,11 +2809,12 @@ def generate_project_report(request, start_date, end_date, project_id=None):
             ws[f'A{current_row}'] = employee.employee_id or 'N/A'
             ws[f'B{current_row}'] = f"{employee.first_name} {employee.last_name or ''}"
             ws[f'C{current_row}'] = employee.designation or 'N/A'
-            ws[f'D{current_row}'] = float(employee.man_hour_of_employee)
-            ws[f'E{current_row}'] = float(employee_data['total_hours'])
-            ws[f'F{current_row}'] = float(employee_data['total_cost'])
+            ws[f'D{current_row}'] = employee.work_location.get_location_display() if employee.work_location else 'N/A'
+            ws[f'E{current_row}'] = float(employee.man_hour_of_employee)
+            ws[f'F{current_row}'] = float(employee_data['total_hours'])
+            ws[f'G{current_row}'] = float(employee_data['total_cost'])
             
-            for col in range(1, 7):
+            for col in range(1, 8):
                 ws.cell(row=current_row, column=col).border = border
             
             current_row += 1
@@ -2768,7 +2824,7 @@ def generate_project_report(request, start_date, end_date, project_id=None):
         ws[f'A{current_row}'].font = Font(bold=True, size=14)
         current_row += 2
     
-    for proj_data in projects_data.values():
+    for proj_data in sorted(projects_data.values(), key=lambda x: x['project'].name):
         project = proj_data['project']
         
         ws[f'A{current_row}'] = f"Project: {project.name} ({project.project_id})"
@@ -2783,8 +2839,11 @@ def generate_project_report(request, start_date, end_date, project_id=None):
         ws[f'E{current_row}'] = f"Team Members: {len(proj_data['employees'])}"
         current_row += 1
         
+        ws[f'A{current_row}'] = f"Location: {project.work_location.get_location_display() if project.work_location else 'N/A'}"
         current_row += 1
-        headers = ['Date', 'Employee ID', 'Employee', 'Start Time', 'End Time', 'Hours', 'Cost ($)', 'Description']
+        
+        current_row += 1
+        headers = ['Date', 'Employee ID', 'Employee', 'Designation', 'Start Time', 'End Time', 'Hours', 'Cost ($)', 'Description']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=current_row, column=col, value=header)
             cell.font = header_font
@@ -2801,13 +2860,14 @@ def generate_project_report(request, start_date, end_date, project_id=None):
             ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
             ws[f'B{current_row}'] = entry.employee.employee_id or 'N/A'
             ws[f'C{current_row}'] = f"{entry.employee.first_name} {entry.employee.last_name or ''}"
-            ws[f'D{current_row}'] = entry.start_time.strftime('%H:%M')
-            ws[f'E{current_row}'] = entry.end_time.strftime('%H:%M')
-            ws[f'F{current_row}'] = float(entry.working_hours)
-            ws[f'G{current_row}'] = float(entry_cost)
-            ws[f'H{current_row}'] = entry.description
+            ws[f'D{current_row}'] = entry.employee.designation or 'N/A'
+            ws[f'E{current_row}'] = entry.start_time.strftime('%H:%M')
+            ws[f'F{current_row}'] = entry.end_time.strftime('%H:%M')
+            ws[f'G{current_row}'] = float(entry.working_hours)
+            ws[f'H{current_row}'] = float(entry_cost)
+            ws[f'I{current_row}'] = entry.description
             
-            for col in range(1, 9):
+            for col in range(1, 10):
                 ws.cell(row=current_row, column=col).border = border
             
             current_row += 1
@@ -2838,7 +2898,7 @@ def generate_project_report(request, start_date, end_date, project_id=None):
         ws[f'A{current_row}'] = f"Total Cost: ${total_report_cost:.2f}"
         ws[f'A{current_row}'].font = Font(bold=True, size=12, color="FF0000")
     
-    column_widths = [15, 15, 25, 12, 12, 10, 15, 40]
+    column_widths = [15, 15, 25, 15, 12, 12, 10, 15, 40]
     for col, width in enumerate(column_widths, 1):
         ws.column_dimensions[get_column_letter(col)].width = width
     
@@ -2850,7 +2910,9 @@ def generate_project_report(request, start_date, end_date, project_id=None):
         output.read(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    filename = f"project_report_with_cost_{start_date}_{end_date}.xlsx"
+    
+    location_suffix = f"_{work_location_id}" if work_location_id else ""
+    filename = f"project_report_with_cost_{start_date}_{end_date}{location_suffix}.xlsx"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
     return response
@@ -2872,6 +2934,7 @@ def get_report_summary(request):
         selected_year = request.POST.get('selected_year')
         employee_id = request.POST.get('employee_id')
         project_id = request.POST.get('project_id')
+        work_location_id = request.POST.get('work_location_id')  # NEW
         
         # Determine date range
         if date_range == 'daily':
@@ -2897,12 +2960,17 @@ def get_report_summary(request):
         if request.user.role == 'semi-admin':
             location = request.user.work_location
             work_entries = WorkEntry.objects.filter(
-               employee__work_location = location, work_date__range=[start_date, end_date]
+                employee__work_location=location,
+                work_date__range=[start_date, end_date]
             ).select_related('employee', 'project')
         else:
             work_entries = WorkEntry.objects.filter(
                 work_date__range=[start_date, end_date]
             ).select_related('employee', 'project')
+            
+            # Apply work location filter if specified
+            if work_location_id:
+                work_entries = work_entries.filter(employee__work_location_id=work_location_id)
         
         if employee_id:
             work_entries = work_entries.filter(employee_id=employee_id)
@@ -2928,7 +2996,6 @@ def get_report_summary(request):
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
-
 
 
 

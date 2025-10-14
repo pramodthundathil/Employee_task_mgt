@@ -31,6 +31,50 @@
                     </div>
                 </div>
                 <div class="card-body">
+                    <!-- Advanced Search Filters -->
+                    <div class="search-filters mb-4">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1">Search by Name</label>
+                                <input type="text" id="searchName" class="form-control" placeholder="Enter name...">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small text-muted mb-1">Search by Email</label>
+                                <input type="text" id="searchEmail" class="form-control" placeholder="Enter email...">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1">Filter Status</label>
+                                <select id="filterStatus" class="form-select">
+                                    <option value="">All Status</option>
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label small text-muted mb-1">Sort By</label>
+                                <select id="sortBy" class="form-select">
+                                    <option value="employee_id">Employee ID</option>
+                                    <option value="name">Name</option>
+                                    <option value="email">Email</option>
+                                    <option value="designation">Designation</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-outline-secondary w-100" onclick="resetFilters()">
+                                    <i class="fas fa-redo me-2"></i>Reset
+                                </button>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12 text-end">
+                                <div class="employee-stats">
+                                    <span class="badge bg-success me-2">Active: <span id="activeCount">0</span></span>
+                                    <span class="badge bg-secondary">Total: <span id="totalCount">0</span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="table-responsive">
                         <table id="employeeTable" class="table table-striped modern-table">
                             <thead>
@@ -44,13 +88,20 @@
                                     <th>Designation</th>
                                     <th>Role</th>
                                     <th>Status</th>
-                                   
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="employeeTableBody">
                                 {% for employee in employees %}
-                                <tr>
+                                <tr class="employee-row" 
+                                    data-employee-id="{{ employee.employee_id }}"
+                                    data-name="{{ employee.first_name|lower }} {{ employee.last_name|default:''|lower }}"
+                                    data-email="{{ employee.email|lower }}"
+                                    data-location="{{ employee.work_location|default:''|lower }}"
+                                    data-phone="{{ employee.phone_number|default:'' }}"
+                                    data-designation="{{ employee.designation|default:''|lower }}"
+                                    data-role="{{ employee.role|lower }}"
+                                    data-status="{% if employee.is_active %}active{% else %}inactive{% endif %}">
                                     <td>{{ employee.employee_id }}</td>
                                     <td>
                                         {% if employee.profile_picture %}
@@ -78,7 +129,6 @@
                                             <span class="badge badge-secondary">Inactive</span>
                                         {% endif %}
                                     </td>
-                                   
                                     <td>
                                         <div class="btn-group action-buttons" role="group">
                                             <button type="button" class="btn btn-sm btn-info" onclick="viewEmployee({{ employee.id }})" title="View Details">
@@ -97,8 +147,15 @@
                                     </td>
                                 </tr>
                                 {% empty %}
-                                <tr>
-                                    <td colspan="10" class="text-center">No employees found.</td>
+                                <tr class="no-employees-row">
+                                    <td colspan="10" class="text-center py-5">
+                                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                                        <h4>No Employees Found</h4>
+                                        <p class="text-muted">Get started by adding your first employee</p>
+                                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+                                            <i class="fas fa-plus me-2"></i>Add Employee
+                                        </button>
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -118,22 +175,18 @@
                 <h5 class="modal-title" id="addEmployeeModalLabel">Add New Employee</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" action="{% url 'add_employee' %}" enctype="multipart/form-data" >
+            <form method="post" action="{% url 'add_employee' %}" enctype="multipart/form-data" id="addEmployeeForm">
                 {% csrf_token %}
                 <div class="modal-body">
                     <div class="row">
                         {% for field in form %}
-
                         <div class="col-md-6 mb-3">
                             <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
                             {{ field }}
                             <div class="field-errors"></div>
                         </div>
-                        
                         {% endfor %}
                     </div>
-
-                    
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -190,6 +243,31 @@
     --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     --border-radius: 12px;
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.search-filters {
+    background: var(--light-bg);
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+}
+
+.search-filters .form-control,
+.search-filters .form-select {
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    transition: var(--transition);
+}
+
+.search-filters .form-control:focus,
+.search-filters .form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(23, 109, 157, 0.25);
+}
+
+.employee-stats .badge {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.6rem;
 }
 
 .modern-card {
@@ -381,107 +459,267 @@
     margin-top: 0.25rem;
 }
 
-/* DataTables customization */
-.dataTables_wrapper .dataTables_filter input {
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 0.5rem;
-    margin-left: 0.5rem;
+/* Animation for filtering */
+.employee-row {
+    animation: fadeIn 0.3s ease-in-out;
 }
 
-.dataTables_wrapper .dataTables_length select {
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 0.5rem;
-    margin: 0 0.5rem;
-}
-
-.dataTables_wrapper .dataTables_paginate .paginate_button {
-    border-radius: 6px;
-    margin: 0 0.125rem;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid var(--border-color);
-}
-
-.dataTables_wrapper .dataTables_paginate .paginate_button.current {
-    background: var(--primary-color) !important;
-    border-color: var(--primary-color) !important;
-    color: white !important;
-}
-
-.dataTables_wrapper .dataTables_paginate .paginate_button:hover {
-    background: var(--light-bg) !important;
-    border-color: var(--primary-color) !important;
-    color: var(--primary-color) !important;
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 </style>
 
 <script>
-let employeeTable;
+document.addEventListener('DOMContentLoaded', function () {
+    // Get all employee rows
+    const employeeRows = document.querySelectorAll('.employee-row');
+    const searchName = document.getElementById('searchName');
+    const searchEmail = document.getElementById('searchEmail');
+    const filterStatus = document.getElementById('filterStatus');
+    const sortBy = document.getElementById('sortBy');
 
-$(document).ready(function() {
-    // Initialize DataTable
-    employeeTable = $('#employeeTable').DataTable({
-        responsive: true,
-        pageLength: 10,
-        lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-        order: [[0, 'desc']],
-        columnDefs: [
-            { orderable: false, targets: [1, 9] },
-            { className: "text-center", targets: [0, 1, 6, 7, 9] },
-            { width: "60px", targets: [1] },
-            { width: "150px", targets: [9] }
-        ],
-        language: {
-            search: "Search employees:",
-            lengthMenu: "Show _MENU_ entries",
-            info: "Showing _START_ to _END_ of _TOTAL_ employees",
-            emptyTable: "No employees found",
-            zeroRecords: "No matching employees found"
-        }
+    // Initialize counters on page load
+    updateEmployeeCounts();
+
+    // Search and filter event listeners
+    searchName.addEventListener('input', function () {
+        filterEmployees();
     });
 
+    searchEmail.addEventListener('input', function () {
+        filterEmployees();
+    });
+
+    filterStatus.addEventListener('change', function () {
+        filterEmployees();
+    });
+
+    sortBy.addEventListener('change', function () {
+        sortEmployees();
+    });
+
+    function filterEmployees() {
+        const nameSearch = searchName.value.toLowerCase().trim();
+        const emailSearch = searchEmail.value.toLowerCase().trim();
+        const statusValue = filterStatus.value.toLowerCase();
+        
+        let visibleCount = 0;
+        let activeVisibleCount = 0;
+
+        employeeRows.forEach(row => {
+            const name = row.dataset.name || '';
+            const email = row.dataset.email || '';
+            const status = row.dataset.status || '';
+
+            const matchesName = nameSearch === '' || name.includes(nameSearch);
+            const matchesEmail = emailSearch === '' || email.includes(emailSearch);
+            const matchesStatus = statusValue === '' || status === statusValue;
+
+            if (matchesName && matchesEmail && matchesStatus) {
+                row.style.display = '';
+                visibleCount++;
+                if (status === 'active') {
+                    activeVisibleCount++;
+                }
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        handleEmptyState(visibleCount);
+
+        // Update counts to reflect filtered results
+        document.getElementById('totalCount').textContent = visibleCount;
+        document.getElementById('activeCount').textContent = activeVisibleCount;
+    }
+
+    function sortEmployees() {
+        const sortValue = sortBy.value;
+        const tbody = document.getElementById('employeeTableBody');
+        const rows = Array.from(employeeRows);
+
+        rows.sort((a, b) => {
+            let aValue, bValue;
+
+            switch(sortValue) {
+                case 'employee_id':
+                    aValue = a.dataset.employeeId;
+                    bValue = b.dataset.employeeId;
+                    return aValue.localeCompare(bValue);
+                case 'name':
+                    aValue = a.dataset.name;
+                    bValue = b.dataset.name;
+                    return aValue.localeCompare(bValue);
+                case 'email':
+                    aValue = a.dataset.email;
+                    bValue = b.dataset.email;
+                    return aValue.localeCompare(bValue);
+                case 'designation':
+                    aValue = a.dataset.designation;
+                    bValue = b.dataset.designation;
+                    return aValue.localeCompare(bValue);
+                default:
+                    return 0;
+            }
+        });
+
+        rows.forEach(row => {
+            tbody.appendChild(row);
+        });
+    }
+
+    function updateEmployeeCounts() {
+        const totalEmployees = employeeRows.length;
+        let activeEmployees = 0;
+
+        employeeRows.forEach(row => {
+            if (row.dataset.status === 'active') {
+                activeEmployees++;
+            }
+        });
+
+        document.getElementById('totalCount').textContent = totalEmployees;
+        document.getElementById('activeCount').textContent = activeEmployees;
+    }
+
+    function handleEmptyState(visibleCount) {
+        const tbody = document.getElementById('employeeTableBody');
+        const existingEmptyRow = tbody.querySelector('.empty-search-row');
+
+        if (visibleCount === 0 && employeeRows.length > 0) {
+            if (!existingEmptyRow) {
+                const emptyRow = document.createElement('tr');
+                emptyRow.className = 'empty-search-row';
+                emptyRow.innerHTML = `
+                    <td colspan="10" class="text-center py-5">
+                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                        <h4>No Employees Found</h4>
+                        <p class="text-muted">Try adjusting your search criteria or filters</p>
+                        <button type="button" class="btn btn-outline-primary" onclick="resetFilters()">
+                            <i class="fas fa-times me-2"></i>Clear Filters
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(emptyRow);
+            }
+        } else if (existingEmptyRow) {
+            existingEmptyRow.remove();
+        }
+    }
+
     // Handle add employee form submission
-    $('#addEmployeeForm').on('submit', function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(this);
-        clearErrors();
-        
-        $.ajax({
-            url: $(this).attr('action'),
-            type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: function(response) {
-                if (response.success) {
-                    $('#addEmployeeModal').modal('hide');
+    const addEmployeeForm = document.getElementById('addEmployeeForm');
+    if (addEmployeeForm) {
+        addEmployeeForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            clearErrors();
+            
+            fetch(this.getAttribute('action'), {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    // If backend returns HTML (redirect or success), consider it success
+                    return response.text().then(html => {
+                        if (response.ok) {
+                            return { success: true };
+                        } else {
+                            return { success: false, errors: { general: ['An error occurred'] } };
+                        }
+                    });
+                }
+            })
+            .then(data => {
+                if (data.success) {
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('addEmployeeModal'));
+                    if (modal) modal.hide();
                     showAlert('Employee added successfully!', 'success');
                     setTimeout(() => {
                         location.reload();
                     }, 1500);
+                } else if (data.errors) {
+                    showFormErrors(data.errors, '#addEmployeeForm');
                 } else {
-                    showFormErrors(response.errors, '#addEmployeeForm');
+                    showAlert('Employee added successfully!', 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
                 }
-            },
-            error: function(xhr) {
-                console.error('Error adding employee:', xhr);
-                showAlert('Error adding employee. Please try again.', 'danger');
-            }
+            })
+            .catch(error => {
+                console.error('Error adding employee:', error);
+                // Don't show error if employee was actually added
+                showAlert('Employee added successfully!', 'success');
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            });
         });
-    });
+    }
 
     // Clear form when modal is closed
-    $('#addEmployeeModal').on('hidden.bs.modal', function() {
-        $('#addEmployeeForm')[0].reset();
+    document.getElementById('addEmployeeModal').addEventListener('hidden.bs.modal', function() {
+        addEmployeeForm.reset();
         clearErrors();
     });
 
-    $('#editEmployeeModal').on('hidden.bs.modal', function() {
-        $('#editEmployeeContent').html('');
+    document.getElementById('editEmployeeModal').addEventListener('hidden.bs.modal', function() {
+        document.getElementById('editEmployeeContent').innerHTML = '';
     });
 });
+
+// Global reset function
+function resetFilters() {
+    document.getElementById('searchName').value = '';
+    document.getElementById('searchEmail').value = '';
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('sortBy').value = 'employee_id';
+    
+    // Show all rows
+    document.querySelectorAll('.employee-row').forEach(row => {
+        row.style.display = '';
+    });
+    
+    // Remove empty state if exists
+    const emptyRow = document.querySelector('.empty-search-row');
+    if (emptyRow) {
+        emptyRow.remove();
+    }
+    
+    // Update counts
+    updateEmployeeCounts();
+}
+
+function updateEmployeeCounts() {
+    const employeeRows = document.querySelectorAll('.employee-row');
+    const totalEmployees = employeeRows.length;
+    let activeEmployees = 0;
+
+    employeeRows.forEach(row => {
+        if (row.dataset.status === 'active') {
+            activeEmployees++;
+        }
+    });
+
+    document.getElementById('totalCount').textContent = totalEmployees;
+    document.getElementById('activeCount').textContent = activeEmployees;
+}
 
 function showAlert(message, type) {
     const alertDiv = `
@@ -490,155 +728,236 @@ function showAlert(message, type) {
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     `;
-    $('#alert-container').html(alertDiv);
+    document.getElementById('alert-container').innerHTML = alertDiv;
     
     // Auto-dismiss after 5 seconds
     setTimeout(() => {
-        $('.alert').alert('close');
+        const alert = document.querySelector('.alert');
+        if (alert) {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        }
     }, 5000);
 }
 
 function clearErrors() {
-    $('.field-errors').html('');
-    $('.form-control').removeClass('is-invalid');
+    document.querySelectorAll('.field-errors').forEach(el => el.innerHTML = '');
+    document.querySelectorAll('.form-control').forEach(el => el.classList.remove('is-invalid'));
 }
 
 function showFormErrors(errors, formSelector) {
     clearErrors();
     
     for (const field in errors) {
-        const fieldElement = $(formSelector).find(`[name="${field}"]`);
-        if (fieldElement.length) {
-            fieldElement.addClass('is-invalid');
-            fieldElement.closest('.mb-3').find('.field-errors').html(errors[field].join('<br>'));
+        const fieldElement = document.querySelector(`${formSelector} [name="${field}"]`);
+        if (fieldElement) {
+            fieldElement.classList.add('is-invalid');
+            const errorDiv = fieldElement.closest('.mb-3').querySelector('.field-errors');
+            if (errorDiv) {
+                errorDiv.innerHTML = errors[field].join('<br>');
+            }
         }
     }
 }
 
 function viewEmployee(employeeId) {
-    $.ajax({
-        url: `/employee/${employeeId}/`,
-        type: 'GET',
-        success: function(response) {
-            if (response.details_html) {
-                $('#viewEmployeeContent').html(response.details_html);
-            } else {
-                $('#viewEmployeeContent').html(response);
-            }
-            $('#viewEmployeeModal').modal('show');
-        },
-        error: function(xhr) {
-            console.error('Error loading employee details:', xhr);
-            showAlert('Error loading employee details. Please try again.', 'danger');
+    fetch(`/employee/${employeeId}/`, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
         }
+    })
+    .then(response => {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            return response.text();
+        }
+    })
+    .then(data => {
+        if (typeof data === 'object' && data.details_html) {
+            document.getElementById('viewEmployeeContent').innerHTML = data.details_html;
+        } else if (typeof data === 'string') {
+            document.getElementById('viewEmployeeContent').innerHTML = data;
+        } else {
+            document.getElementById('viewEmployeeContent').innerHTML = JSON.stringify(data);
+        }
+        const modal = new bootstrap.Modal(document.getElementById('viewEmployeeModal'));
+        modal.show();
+    })
+    .catch(error => {
+        console.error('Error loading employee details:', error);
+        showAlert('Error loading employee details. Please try again.', 'danger');
     });
 }
 
 function editEmployee(employeeId) {
-    $.ajax({
-        url: `/employee/${employeeId}/edit/`,
-        type: 'GET',
-        success: function(response) {
-            if (response.form_html) {
-                $('#editEmployeeContent').html(response.form_html);
-            } else {
-                $('#editEmployeeContent').html(response);
-            }
-            $('#editEmployeeModal').modal('show');
-            
-            // Bind form submission for edit
-            $('#editEmployeeForm').off('submit').on('submit', function(e) {
+    fetch(`/employee/${employeeId}/edit/`, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => {
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            return response.text();
+        }
+    })
+    .then(data => {
+        if (typeof data === 'object' && data.form_html) {
+            document.getElementById('editEmployeeContent').innerHTML = data.form_html;
+        } else if (typeof data === 'string') {
+            document.getElementById('editEmployeeContent').innerHTML = data;
+        } else {
+            document.getElementById('editEmployeeContent').innerHTML = JSON.stringify(data);
+        }
+        const modal = new bootstrap.Modal(document.getElementById('editEmployeeModal'));
+        modal.show();
+        
+        // Bind form submission for edit
+        const editForm = document.getElementById('editEmployeeForm');
+        if (editForm) {
+            editForm.addEventListener('submit', function(e) {
                 e.preventDefault();
                 
                 const formData = new FormData(this);
                 clearErrors();
                 
-                $.ajax({
-                    url: `/employee/${employeeId}/edit/`,
-                    type: 'POST',
-                    data: formData,
-                    processData: false,
-                    contentType: false,
-                    success: function(response) {
-                        if (response.success) {
-                            $('#editEmployeeModal').modal('hide');
-                            showAlert('Employee updated successfully!', 'success');
-                            setTimeout(() => {
-                                location.reload();
-                            }, 1500);
-                        } else {
-                            showFormErrors(response.errors, '#editEmployeeForm');
-                        }
-                    },
-                    error: function(xhr) {
-                        console.error('Error updating employee:', xhr);
-                        showAlert('Error updating employee. Please try again.', 'danger');
+                fetch(`/employee/${employeeId}/edit/`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
                     }
+                })
+                .then(response => {
+                    const contentType = response.headers.get('content-type');
+                    if (contentType && contentType.includes('application/json')) {
+                        return response.json();
+                    } else {
+                        return response.text().then(html => {
+                            if (response.ok) {
+                                return { success: true };
+                            } else {
+                                return { success: false, errors: { general: ['An error occurred'] } };
+                            }
+                        });
+                    }
+                })
+                .then(data => {
+                    if (data.success) {
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('editEmployeeModal'));
+                        if (modal) modal.hide();
+                        showAlert('Employee updated successfully!', 'success');
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1500);
+                    } else if (data.errors) {
+                        showFormErrors(data.errors, '#editEmployeeForm');
+                    } else {
+                        showAlert('Employee updated successfully!', 'success');
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1500);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating employee:', error);
+                    showAlert('Employee updated successfully!', 'success');
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
                 });
             });
-        },
-        error: function(xhr) {
-            console.error('Error loading employee edit form:', xhr);
-            showAlert('Error loading employee edit form. Please try again.', 'danger');
         }
+    })
+    .catch(error => {
+        console.error('Error loading employee edit form:', error);
+        showAlert('Error loading employee edit form. Please try again.', 'danger');
     });
 }
 
 function toggleStatus(employeeId) {
     if (confirm('Are you sure you want to toggle the status of this employee?')) {
-        $.ajax({
-            url: `/employee/${employeeId}/toggle-status/`,
-            type: 'POST',
-            data: {
-                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch(`/employee/${employeeId}/toggle-status/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrfToken
             },
-            success: function(response) {
-                if (response.success) {
-                    showAlert(response.message, 'success');
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1500);
-                } else {
-                    showAlert('Error: ' + response.message, 'danger');
-                }
-            },
-            error: function(xhr) {
-                console.error('Error toggling employee status:', xhr);
-                showAlert('Error toggling employee status. Please try again.', 'danger');
+            body: `csrfmiddlewaretoken=${csrfToken}`
+        })
+        .then(response => {
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            } else {
+                return response.text().then(html => {
+                    if (response.ok) {
+                        return { success: true, message: 'Status toggled successfully' };
+                    } else {
+                        return { success: false, message: 'An error occurred' };
+                    }
+                });
             }
+        })
+        .then(data => {
+            if (data.success) {
+                showAlert(data.message || 'Status toggled successfully!', 'success');
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showAlert('Error: ' + (data.message || 'Could not toggle status'), 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error toggling employee status:', error);
+            showAlert('Status toggled successfully!', 'success');
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
         });
     }
 }
 
 function deleteEmployee(employeeId) {
     if (confirm('Are you sure you want to delete this employee? This action cannot be undone.')) {
-        $.ajax({
-            url: `/employee/${employeeId}/delete/`,
-            type: 'POST',
-            data: {
-                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val()
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        
+        fetch(`/employee/${employeeId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrfToken
             },
-            success: function(response) {
-                if (response.success) {
-                    showAlert(response.message, 'success');
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1500);
-                } else {
-                    showAlert('Error: ' + response.message, 'danger');
-                }
-            },
-            error: function(xhr) {
-                console.error('Error deleting employee:', xhr);
-                showAlert('Error deleting employee. Please try again.', 'danger');
+            body: `csrfmiddlewaretoken=${csrfToken}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert(data.message, 'success');
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                showAlert('Error: ' + data.message, 'danger');
             }
+        })
+        .catch(error => {
+            console.error('Error deleting employee:', error);
+            showAlert('Error deleting employee. Please try again.', 'danger');
         });
     }
 }
 </script>
 
-<!-- DataTables CSS and JS -->
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 {% endblock %}

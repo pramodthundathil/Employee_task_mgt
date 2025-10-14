@@ -130,8 +130,11 @@
                                 <div>
                                     <strong>{{ entry.project.name }}</strong>
                                     <br>
+                                    Location: {{ entry.project.work_location }}
+                                    <br>
                                     <span class="badge bg-{{ entry.project.status|yesno:'success,warning' }}">
                                         {{ entry.project.get_status_display }}
+                                
                                     </span>
                                 </div>
                             </td>

@@ -92,7 +92,7 @@
                                     <th>Name</th>
                                     <th>Description</th>
                                     <th>Start Date</th>
-                                    <th>End Date</th>
+                                    <th>Location</th>
                                     <th>Status</th>
                                     <th>Created At</th>
                                     <th>Actions</th>
@@ -111,7 +111,8 @@
                                         <span class="text-muted">{{ project.description|truncatewords:10 }}</span>
                                     </td>
                                     <td>{{ project.start_date|date:"M d, Y" }}</td>
-                                    <td>{{ project.end_date|date:"M d, Y"|default:"-" }}</td>
+                                    <!-- <td>{{ project.end_date|date:"M d, Y"|default:"-" }}</td> -->
+                                     <td>{{project.work_location}}</td>
                                     <td>
                                         {% if project.status == 'active' %}
                                         <span class="badge bg-success">Active</span>

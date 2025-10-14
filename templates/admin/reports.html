@@ -71,7 +71,7 @@
                                     <option value="">All Projects</option>
                                     {% for project in projects %}
                                     <option value="{{ project.id }}" {% if request.GET.project == project.id|stringformat:"s" %}selected{% endif %}>
-                                        {{ project.name }}
+                                       {{ project.project_id }} - {{ project.name }}
                                     </option>
                                     {% endfor %}
                                 </select>
@@ -221,12 +221,12 @@
                                 <tr>
                                     {% if report_type == 'employee' %}
                                         <td>
-                                            <strong>{{ data.employee__first_name }} {{ data.employee__last_name }}</strong>
+                                            <strong>{{ data.employee__first_name }} {{ data.employee__last_name }} - {{ data.employee.work_location.location }}</strong>
                                         </td>
                                         <td>{{ data.employee__email }}</td>
                                     {% else %}
                                         <td>
-                                            <strong>{{ data.project__name }}</strong>
+                                            <strong>{{ data.project__name }} - {{data.project__work_location}}</strong>
                                         </td>
                                     {% endif %}
                                     <td>

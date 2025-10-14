@@ -76,7 +76,6 @@
                                 <select class="form-select" name="date_range" id="dateRange" required>
                                     <option value="">Select Date Range</option>
                                     <option value="daily">Daily</option>
-                                    <!-- <option value="monthly">Monthly</option> -->
                                     <option value="custom">Custom Range</option>
                                 </select>
                             </div>
@@ -88,30 +87,6 @@
                             <div id="dailyOptions" class="col-md-4" style="display: none;">
                                 <label class="form-label">Select Date</label>
                                 <input type="date" class="form-control" name="selected_date" id="selectedDate" value="{{ current_date|date:'Y-m-d' }}">
-                            </div>
-
-                            <!-- Monthly Selection -->
-                            <div id="monthlyOptions" class="col-md-8" style="display: none;">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Month</label>
-                                        <select class="form-select" name="selected_month" id="selectedMonth">
-                                            {% for i in "123456789012" %}
-                                                <option value="{{ forloop.counter }}" {% if forloop.counter == current_date.month %}selected{% endif %}>
-                                                    {{ forloop.counter|date:"F" }}
-                                                </option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Year</label>
-                                        <select class="form-select" name="selected_year" id="selectedYear">
-                                            {% for year in "2020 2021 2022 2023 2024 2025 2026"|make_list %}
-                                                <option value="{{ year }}" {% if year == current_date.year|stringformat:"s" %}selected{% endif %}>{{ year }}</option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                </div>
                             </div>
 
                             <!-- Custom Range Selection -->
@@ -131,6 +106,19 @@
 
                         <!-- Filter Options -->
                         <div id="filterOptions" class="row mb-3" style="display: none;">
+                            <!-- Work Location Filter (NEW) -->
+                            {% if user.role == 'admin' %}
+                            <div id="locationFilter" class="col-md-6" style="display: block;">
+                                <label class="form-label">Filter by Work Location (Optional)</label>
+                                <select class="form-select" name="work_location_id" id="workLocationId">
+                                    <option value="">All Locations</option>
+                                    {% for location in work_locations %}
+                                        <option value="{{ location.id }}">{{ location.get_location_display }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            {% endif %}
+
                             <!-- Employee Filter -->
                             <div id="employeeFilter" class="col-md-6" style="display: none;">
                                 <label class="form-label">Filter by Employee (Optional)</label>
@@ -264,19 +252,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle date range change
     dateRange.addEventListener('change', function() {
         const dailyOptions = document.getElementById('dailyOptions');
-        const monthlyOptions = document.getElementById('monthlyOptions');
         const customOptions = document.getElementById('customOptions');
         
         // Hide all options first
         dailyOptions.style.display = 'none';
-        monthlyOptions.style.display = 'none';
         customOptions.style.display = 'none';
         
         if (this.value === 'daily') {
             dailyOptions.style.display = 'block';
-            dateOptions.style.display = 'block';
-        } else if (this.value === 'monthly') {
-            monthlyOptions.style.display = 'block';
             dateOptions.style.display = 'block';
         } else if (this.value === 'custom') {
             customOptions.style.display = 'block';
