@@ -30,7 +30,7 @@
             <p class="text-muted">Comprehensive overview of work hours and payments across all projects</p>
         </div>
         <div class="col-md-4 text-end">
-            <a href="{% url 'export_all_projects_excel' %}?start_date={{start_date}}&end_date={{end_date}}" 
+            <a href="{% url 'export_all_projects_excel' %}?start_date={{start_date}}&end_date={{end_date}}{% if request.GET.location %}&location={{request.GET.location}}{% endif %}" 
                class="btn btn-success">
                 <i class="fas fa-file-excel me-2"></i>Export Excel
             </a>
@@ -41,22 +41,37 @@
     <div class="card mb-4">
         <div class="card-header">
             <h5 class="card-title mb-0">
-                <i class="fas fa-filter me-2"></i>Date Range Filter
+                <i class="fas fa-filter me-2"></i>Filters
             </h5>
         </div>
         <div class="card-body">
             <form method="get" class="row g-3">
+                <!-- Location Filter - Only for Admin -->
+                {% if locations %}
                 <div class="col-md-3">
-                <label for="start_date" class="form-label">Start Date</label>
-                <input type="date" class="form-control" id="start_date" name="start_date" 
-                    value="{{ start_date|date:'Y-m-d' }}">
-            </div>
-            <div class="col-md-3">
-                <label for="end_date" class="form-label">End Date</label>
-                <input type="date" class="form-control" id="end_date" name="end_date" 
-                    value="{{ end_date|date:'Y-m-d' }}">
-            </div>
-                <div class="col-md-4 d-flex align-items-end">
+                    <label for="location" class="form-label">Work Location</label>
+                    <select name="location" id="location" class="form-select">
+                        <option value="">All Locations</option>
+                        {% for location in locations %}
+                        <option value="{{ location.id }}" {% if request.GET.location == location.id|stringformat:"s" %}selected{% endif %}>
+                            {{ location.get_location_display }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                
+                <div class="col-md-3">
+                    <label for="start_date" class="form-label">Start Date</label>
+                    <input type="date" class="form-control" id="start_date" name="start_date" 
+                        value="{{ start_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="end_date" class="form-label">End Date</label>
+                    <input type="date" class="form-control" id="end_date" name="end_date" 
+                        value="{{ end_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary me-2">
                         <i class="fas fa-search me-1"></i>Filter
                     </button>
@@ -122,6 +137,7 @@
                         <tr>
                             <th>Project ID</th>
                             <th>Project Name</th>
+                            <th>Location</th>
                             <th>Status</th>
                             <th>Total Hours</th>
                             <th>Employees</th>
@@ -140,12 +156,15 @@
                                 <strong>{{stat.project__name}}</strong>
                             </td>
                             <td>
+                                <span class="badge bg-info">{{stat.project__work_location__location|upper}}</span>
+                            </td>
+                            <td>
                                 <span class="badge bg-{% if stat.project__status == 'active' %}success{% else %}secondary{% endif %}">
                                     {{stat.project__status|title}}
                                 </span>
                             </td>
                             <td>
-                                <span class="badge bg-info">{{stat.total_hours|floatformat:2}} hrs</span>
+                                <span class="badge bg-primary">{{stat.total_hours|floatformat:2}} hrs</span>
                             </td>
                             <td>
                                 <span class="badge bg-warning text-dark">{{stat.unique_employees}}</span>
@@ -171,7 +190,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="8" class="text-center text-muted">
+                            <td colspan="9" class="text-center text-muted">
                                 <i class="fas fa-exclamation-circle me-2"></i>No projects found with work entries for the selected criteria.
                             </td>
                         </tr>
@@ -180,9 +199,9 @@
                     {% if project_stats %}
                     <tfoot class="table-light">
                         <tr>
-                            <td colspan="3" class="text-end fw-bold">GRAND TOTAL:</td>
+                            <td colspan="4" class="text-end fw-bold">GRAND TOTAL:</td>
                             <td>
-                                <span class="badge bg-info">{{overall_totals.total_hours|floatformat:2}} hrs</span>
+                                <span class="badge bg-primary">{{overall_totals.total_hours|floatformat:2}} hrs</span>
                             </td>
                             <td>
                                 <span class="badge bg-warning text-dark">{{overall_totals.unique_employees}}</span>

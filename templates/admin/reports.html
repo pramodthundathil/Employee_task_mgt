@@ -30,22 +30,36 @@
                     </h3>
                     </div>
                     <div>
-                   
                         <a href="{% url 'download_reports' %}" class="btn btn-dark">Download Reports</a>
-                    
                     </div>
                 </div>
                 <div class="card-body">
                     <!-- Filter Form -->
                     <form method="GET" class="mb-4">
                         <div class="row">
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <label for="type" class="form-label">Report Type</label>
                                 <select name="type" id="type" class="form-select">
                                     <option value="employee" {% if report_type == 'employee' %}selected{% endif %}>Employee Report</option>
                                     <option value="project" {% if report_type == 'project' %}selected{% endif %}>Project Report</option>
                                 </select>
                             </div>
+                            
+                            <!-- Location Filter - Only for Admin -->
+                            {% if locations %}
+                            <div class="col-md-2">
+                                <label for="location" class="form-label">Work Location</label>
+                                <select name="location" id="location" class="form-select">
+                                    <option value="">All Locations</option>
+                                    {% for location in locations %}
+                                    <option value="{{ location.id }}" {% if request.GET.location == location.id|stringformat:"s" %}selected{% endif %}>
+                                        {{ location.get_location_display }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            {% endif %}
+                            
                             <div class="col-md-2">
                                 <label for="start_date" class="form-label">Start Date</label>
                                 <input type="date" name="start_date" id="start_date" class="form-control" value="{{ start_date|date:'Y-m-d' }}">
@@ -153,23 +167,7 @@
                                     <div class="d-flex justify-content-between">
                                         <div>
                                             <h4>
-                                                {% for item in report_data %}
-                                                    {% if forloop.first %}
-                                                        {% with total_hours=0 %}
-                                                            {% for data in report_data %}
-                                                                {% with total_hours=total_hours|add:data.total_hours %}
-                                                                {% endwith %}
-                                                            {% endfor %}
-                                                        {% endwith %}
-                                                    {% endif %}
-                                                {% endfor %}
-                                                {% with total_hours=0 %}
-                                                    {% for data in report_data %}
-                                                        {% with total_hours=total_hours|add:data.total_hours %}
-                                                        {% endwith %}
-                                                    {% endfor %}
-                                                    <span id="total-hours">0</span>
-                                                {% endwith %}
+                                                <span id="total-hours">0</span>
                                             </h4>
                                             <p class="mb-0">Total Hours</p>
                                         </div>
@@ -204,12 +202,14 @@
                                 <tr>
                                     {% if report_type == 'employee' %}
                                         <th>Employee</th>
+                                        <th>Location</th>
                                         <th>Email</th>
                                         <th>Total Hours</th>
                                         <th>Percentage</th>
                                         <th>Actions</th>
                                     {% else %}
                                         <th>Project</th>
+                                        <th>Location</th>
                                         <th>Total Hours</th>
                                         <th>Percentage</th>
                                         <th>Actions</th>
@@ -221,12 +221,18 @@
                                 <tr>
                                     {% if report_type == 'employee' %}
                                         <td>
-                                            <strong>{{ data.employee__first_name }} {{ data.employee__last_name }} - {{ data.employee.work_location.location }}</strong>
+                                            <strong>{{ data.employee__first_name }} {{ data.employee__last_name }}</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info">{{ data.employee__work_location__location|upper }}</span>
                                         </td>
                                         <td>{{ data.employee__email }}</td>
                                     {% else %}
                                         <td>
-                                            <strong>{{ data.project__name }} - {{data.project__work_location}}</strong>
+                                            <strong>{{ data.project__project_id }} - {{ data.project__name }}</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info">{{ data.project__work_location__location|upper }}</span>
                                         </td>
                                     {% endif %}
                                     <td>
@@ -260,7 +266,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="{% if report_type == 'employee' %}5{% else %}4{% endif %}" class="text-center py-4">
+                                    <td colspan="{% if report_type == 'employee' %}6{% else %}5{% endif %}" class="text-center py-4">
                                         <div class="text-muted">
                                             <i class="fas fa-inbox fa-3x mb-3"></i>
                                             <p>No data found for the selected criteria.</p>
@@ -283,6 +289,7 @@
                                         <th>Date</th>
                                         <th>Employee</th>
                                         <th>Project</th>
+                                        <th>Location</th>
                                         <th>Hours</th>
                                         <th>Time Period</th>
                                         <th>Description</th>
@@ -295,7 +302,10 @@
                                         <td>{{ entry.employee.first_name }} {{ entry.employee.last_name }}</td>
                                         <td>{{ entry.project.name }}</td>
                                         <td>
-                                            <span class="badge bg-secondary">{{ entry.working_hours }} hrs</span>
+                                            <span class="badge bg-secondary">{{ entry.employee.work_location.location|upper }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary">{{ entry.working_hours }} hrs</span>
                                         </td>
                                         <td>{{ entry.start_time|time:'H:i' }} - {{ entry.end_time|time:'H:i' }}</td>
                                         <td>{{ entry.description|truncatewords:10 }}</td>

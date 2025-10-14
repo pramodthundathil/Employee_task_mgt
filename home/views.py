@@ -850,6 +850,7 @@ def project_management(request):
     # Apply filters from request (for AJAX/future use)
     status_filter = request.GET.get('status', '')
     search_query = request.GET.get('search', '')
+    location_filter = request.GET.get('location', '')
     
     if status_filter:
         projects = projects.filter(status=status_filter)
@@ -860,6 +861,10 @@ def project_management(request):
             Q(description__icontains=search_query)
         )
     
+    # Location filter - only for admin users
+    if location_filter and request.user.role == 'admin':
+        projects = projects.filter(work_location__location=location_filter)
+    
     # Order by created_at
     projects = projects.order_by('-created_at')
     
@@ -867,11 +872,18 @@ def project_management(request):
     # If you have many projects (1000+), consider server-side filtering instead
     all_projects = projects
     
+    # Get unique work locations for dropdown filter (only for admin)
+    work_locations = []
+    if request.user.role == 'admin':
+        work_locations = WorkLocation.objects.values_list('location', flat=True).distinct()
+    
     form = ProjectForm(current_user=request.user)
     
     context = {
         'projects': all_projects,
         'form': form,
+        'work_locations': work_locations,
+        'is_semi_admin': request.user.role == 'semi-admin',
     }
     
     return render(request, 'admin/project_management.html', context)
@@ -961,16 +973,29 @@ def close_project(request, project_id):
 def work_entry_management(request):
     if request.user.role not in ['admin', 'semi-admin']:
         return redirect('employee_dashboard')
+    
+    # Get base queryset with location relationships
     if request.user.role == 'semi-admin':
         location = request.user.work_location
-        work_entries = WorkEntry.objects.filter(employee__work_location = location).select_related('employee', 'project').order_by('employee__first_name')
+        work_entries = WorkEntry.objects.filter(
+            employee__work_location=location
+        ).select_related(
+            'employee', 'project', 'employee__work_location', 'project__work_location'
+        ).order_by('-work_date', 'employee__first_name')
     else:
-        work_entries = WorkEntry.objects.select_related('employee', 'project').order_by('employee__first_name')
+        work_entries = WorkEntry.objects.select_related(
+            'employee', 'project', 'employee__work_location', 'project__work_location'
+        ).order_by('-work_date', 'employee__first_name')
 
     # Filters
     employee_filter = request.GET.get('employee')
     project_filter = request.GET.get('project')
     date_filter = request.GET.get('date')
+    location_filter = request.GET.get('location')  # New location filter
+    
+    # Apply location filter for admin
+    if request.user.role == 'admin' and location_filter:
+        work_entries = work_entries.filter(employee__work_location_id=location_filter)
     
     if employee_filter:
         work_entries = work_entries.filter(employee_id=employee_filter)
@@ -979,19 +1004,30 @@ def work_entry_management(request):
     if date_filter:
         work_entries = work_entries.filter(work_date=date_filter)
     
+    # Pagination
     paginator = Paginator(work_entries, 20)
     page = request.GET.get('page')
     work_entries = paginator.get_page(page)
     
+    # Get employees and projects based on role
     if request.user.role == 'semi-admin':
         location = request.user.work_location
-
-        employees = User.objects.filter(role='user',work_location = location, is_active=True).order_by('first_name')
-        projects = Project.objects.filter(work_location = location).order_by('project_id')
+        employees = User.objects.filter(
+            role='user', 
+            work_location=location, 
+            is_active=True
+        ).select_related('work_location').order_by('first_name')
+        projects = Project.objects.filter(
+            work_location=location
+        ).select_related('work_location').order_by('project_id')
+        locations = None  # Semi-admin doesn't need location filter
     else:
-        
-        employees = User.objects.filter(role='user', is_active=True).order_by('first_name')
-        projects = Project.objects.all().order_by('project_id')
+        employees = User.objects.filter(
+            role='user', 
+            is_active=True
+        ).select_related('work_location').order_by('first_name')
+        projects = Project.objects.all().select_related('work_location').order_by('project_id')
+        locations = WorkLocation.objects.all().order_by('location')  # For location filter
   
     try:
         if request.method == "POST":
@@ -1004,17 +1040,16 @@ def work_entry_management(request):
             else:
                 messages.info(request, form.errors.as_text())
                 return redirect("work_entry_management")
-
     except Exception as e:
         messages.info(request, f"Something went wrong: {str(e)}")
         return redirect("work_entry_management")
-
 
     context = {
         'work_entries': work_entries,
         'employees': employees,
         'projects': projects,
-        "form" : WorkEntryFormAdmin(current_user=request.user)
+        'locations': locations,  # New context variable
+        'form': WorkEntryFormAdmin(current_user=request.user)
     }
     return render(request, 'admin/work_entry_management.html', context)
 
@@ -1402,19 +1437,28 @@ def all_projects_work_summary(request):
     # Get date filters
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
+    location_id = request.GET.get('location')  # New location filter
    
     if not start_date:
         start_date = (timezone.now() - timedelta(days=30)).date()
     if not end_date:
         end_date = timezone.now().date()
     
-        # Get base queryset
+    # Get base queryset
     if request.user.role == 'semi-admin':
         location = request.user.work_location
-        work_entries = WorkEntry.objects.filter(employee__work_location = location)
+        work_entries = WorkEntry.objects.filter(
+            employee__work_location=location
+        ).select_related('employee', 'project', 'employee__work_location', 'project__work_location')
     else:
-        # Base queryset
-        work_entries = WorkEntry.objects.all()
+        # Base queryset for admin
+        work_entries = WorkEntry.objects.all().select_related(
+            'employee', 'project', 'employee__work_location', 'project__work_location'
+        )
+        
+        # Apply location filter for admin if provided
+        if location_id:
+            work_entries = work_entries.filter(employee__work_location_id=location_id)
     
     # Apply date filters
     if start_date:
@@ -1427,7 +1471,8 @@ def all_projects_work_summary(request):
         'project__id',
         'project__name',
         'project__project_id',
-        'project__status'
+        'project__status',
+        'project__work_location__location'  # Include location
     ).annotate(
         total_hours=Sum('working_hours'),
         total_entries=Count('id'),
@@ -1457,12 +1502,19 @@ def all_projects_work_summary(request):
     # Calculate overall payment
     overall_payment = sum(stat['total_payment'] for stat in project_stats)
     
+    # Get locations for admin filter
+    if request.user.role == 'admin':
+        locations = WorkLocation.objects.all().order_by('location')
+    else:
+        locations = None
+    
     context = {
         'project_stats': project_stats,
         'overall_totals': overall_totals,
         'overall_payment': overall_payment,
         'start_date': start_date,
         'end_date': end_date,
+        'locations': locations,  # New context variable
     }
     
     return render(request, 'admin/all_projects_work_summary.html', context)
@@ -1873,24 +1925,31 @@ def reports(request):
     end_date_param = request.GET.get('end_date')
     employee_id = request.GET.get('employee')
     project_id = request.GET.get('project')
+    location_id = request.GET.get('location')  # New parameter
     
     if start_date_param:
         start_date = date.fromisoformat(start_date_param)
     if end_date_param:
         end_date = date.fromisoformat(end_date_param)
-        # Get base queryset
+    
+    # Get base queryset
     if request.user.role == 'semi-admin':
         location = request.user.work_location
-        # work_entries = WorkEntry.objects.filter(employee__work_location = location)
         work_entries = WorkEntry.objects.filter(
-           employee__work_location = location, work_date__range=[start_date, end_date]
-        ).select_related('employee', 'project')
+            employee__work_location=location, 
+            work_date__range=[start_date, end_date]
+        ).select_related('employee', 'project', 'employee__work_location', 'project__work_location')
     else:
-        # Base query
+        # Base query for admin
         work_entries = WorkEntry.objects.filter(
             work_date__range=[start_date, end_date]
-        ).select_related('employee', 'project')
+        ).select_related('employee', 'project', 'employee__work_location', 'project__work_location')
+        
+        # Apply location filter for admin if provided
+        if location_id:
+            work_entries = work_entries.filter(employee__work_location_id=location_id)
     
+    # Apply other filters
     if employee_id:
         work_entries = work_entries.filter(employee_id=employee_id)
     if project_id:
@@ -1898,33 +1957,55 @@ def reports(request):
     
     # Generate report data
     if report_type == 'employee':
-        report_data = work_entries.values('employee__email', 'employee__first_name', 'employee__last_name').annotate(
+        report_data = work_entries.values(
+            'employee__id',
+            'employee__email', 
+            'employee__first_name', 
+            'employee__last_name',
+            'employee__work_location__location'
+        ).annotate(
             total_hours=Sum('working_hours')
-        ).order_by('employee__id')
+        ).order_by('employee__first_name', 'employee__last_name')
     else:  # project
-        report_data = work_entries.values('project__name').annotate(
+        report_data = work_entries.values(
+            'project__id',
+            'project__name',
+            'project__project_id',
+            'project__work_location__location'
+        ).annotate(
             total_hours=Sum('working_hours')
         ).order_by('project__name')
     
+    # Get employees and projects based on role
     if request.user.role == 'semi-admin':
-        projects = Project.objects.filter(work_location = location).order_by("project_id")
-        employees = CustomUser.objects.filter(role='user', is_active=True, work_location = location).order_by("first_name")
-
+        location = request.user.work_location
+        projects = Project.objects.filter(work_location=location).select_related('work_location').order_by("project_id")
+        employees = CustomUser.objects.filter(
+            role='user', 
+            is_active=True, 
+            work_location=location
+        ).select_related('work_location').order_by("first_name")
+        locations = None  # Semi-admin doesn't need location filter
     else:
-        employees = CustomUser.objects.filter(role='user', is_active=True).order_by("first_name")
-        projects = Project.objects.all().order_by("project_id")
+        # Admin can see all
+        employees = CustomUser.objects.filter(
+            role='user', 
+            is_active=True
+        ).select_related('work_location').order_by("first_name")
+        projects = Project.objects.all().select_related('work_location').order_by("project_id")
+        locations = WorkLocation.objects.all().order_by('location')  # For location filter
     
     context = {
         'report_data': report_data,
         'work_entries': work_entries,
         'employees': employees,
         'projects': projects,
+        'locations': locations,  # New context variable
         'report_type': report_type,
         'start_date': start_date,
         'end_date': end_date,
     }
     return render(request, 'admin/reports.html', context)
-
 
 
 @login_required
