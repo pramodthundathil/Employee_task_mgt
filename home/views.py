@@ -1957,6 +1957,9 @@ def generate_report(request):
     work_location_id = request.POST.get('work_location_id')  # NEW
     report_format = request.POST.get("report_format")
 
+    if request.user.role == 'semi-admin':
+        work_location_id = request.user.work_location.id
+
     try:
         # Determine date range
         if date_range == 'daily':
