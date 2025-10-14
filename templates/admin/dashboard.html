@@ -21,6 +21,7 @@
     </div>
 
     <!-- Statistics Cards -->
+    <!-- Overall Statistics Row -->
     <div class="row mb-4">
         <div class="col-md-3">
             <div class="stats-card">
@@ -55,6 +56,73 @@
             </div>
         </div>
     </div>
+{% if request.user.role == 'admin' %}
+    <!-- Location-wise Statistics -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h5 class="mb-3"><i class="fas fa-map-marker-alt me-2"></i>Statistics by Location</h5>
+        </div>
+        {% for stat in location_stats %}
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-location-dot me-2"></i>{{ stat.location_name }}
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-4 text-center">
+                            <div class="location-stat">
+                                <div class="stat-value text-primary fw-bold fs-4">{{ stat.employees }}</div>
+                                <div class="stat-text small text-muted">
+                                    <i class="fas fa-users me-1"></i>Employees
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4 text-center">
+                            <div class="location-stat">
+                                <div class="stat-value text-success fw-bold fs-4">{{ stat.active_projects }}</div>
+                                <div class="stat-text small text-muted">
+                                    <i class="fas fa-project-diagram me-1"></i>Projects
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-4 text-center">
+                            <div class="location-stat">
+                                <div class="stat-value text-info fw-bold fs-4">{{ stat.tasks }}</div>
+                                <div class="stat-text small text-muted">
+                                    <i class="fas fa-tasks me-1"></i>Tasks
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>No location data available.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <style>
+        .location-stat {
+            padding: 10px 0;
+        }
+
+        .location-stat .stat-value {
+            margin-bottom: 5px;
+        }
+
+        .card-header.bg-primary {
+            background: #667eea !important;
+        }
+    </style>
 
     <!-- Quick Actions -->
     <div class="row mb-4">
@@ -121,7 +189,8 @@
                                                 {{ entry.employee.first_name|first }}{{ entry.employee.last_name|first}}
                                             </div>
                                             <div>
-                                                <div class="fw-bold">{{ entry.employee.first_name }} {{ entry.employee.last_name }}</div>
+                                                <div class="fw-bold">{{ entry.employee.first_name }} {{
+                                                    entry.employee.last_name }}</div>
                                                 <small class="text-muted">{{ entry.employee.employee_id }}</small>
                                             </div>
                                         </div>

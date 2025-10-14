@@ -144,7 +144,6 @@ def profile_update(request):
     
     return render(request, 'profile_update.html', context)
 
-
 @login_required
 def admin_dashboard(request):
     # Fix: Use 'and' instead of 'or' and check if user is admin or semi-admin
@@ -182,6 +181,31 @@ def admin_dashboard(request):
     total_projects = project_queryset.filter(status='active').count()
     total_tasks = task_queryset.count()
     
+    # Location-wise counts
+    location_stats = []
+    all_locations = WorkLocation.objects.all()
+    
+    for location in all_locations:
+        # For admin: show all locations
+        # For semi-admin: show only their location
+        if request.user.role == 'semi-admin' and request.user.work_location != location:
+            continue
+            
+        employee_count = user_queryset.filter(work_location=location).count()
+        active_project_count = project_queryset.filter(
+            work_location=location, 
+            status='active'
+        ).count()
+        task_count = task_queryset.filter(project__work_location=location).count()
+        
+        location_stats.append({
+            'location': location,
+            'location_name': location.get_location_display(),
+            'employees': employee_count,
+            'active_projects': active_project_count,
+            'tasks': task_count,
+        })
+    
     # Recent work entries (top 5)
     recent_entries = work_entry_queryset.order_by('-created_at')[:5]
     
@@ -192,10 +216,13 @@ def admin_dashboard(request):
         'total_employees': total_employees,
         'total_projects': total_projects,
         'total_tasks': total_tasks,
+        'location_stats': location_stats,
         'recent_entries': recent_entries,
         'active_projects': active_projects,
     }
     return render(request, 'admin/dashboard.html', context)
+
+
 
 @login_required
 def employee_dashboard(request):
