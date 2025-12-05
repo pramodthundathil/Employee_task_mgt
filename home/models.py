@@ -40,6 +40,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=30, null=True, blank=True, verbose_name='last name')
     employee_id = models.CharField(max_length=30, null=True, blank=True, verbose_name='employee_id')
     designation = models.CharField(max_length=200, null=True, blank=True)
+    is_lead_engineer = models.BooleanField(default=False)
     profile_picture = models.FileField(upload_to="profile_pic", null=True, blank=True)
     man_hour_of_employee = models.DecimalField(default=0, max_digits = 5, decimal_places = 2)
     is_verified = models.BooleanField(default=False)
@@ -108,8 +109,10 @@ class Project(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     work_location = models.ForeignKey(WorkLocation, on_delete=models.SET_NULL, null=True, blank=True)
-
-
+    lead_engineer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="lead_engineer")
+    allocated_engineer_manhours = models.FloatField(default=0)
+    allocated_draftsman_manhours = models.FloatField(default=0)
+    
     class Meta:
         ordering = ['-created_at']
 
@@ -209,6 +212,11 @@ class WorkEntry(models.Model):
         blank=True, 
         related_name='updated_work_entries'
     )
+
+    approval_status = models.BooleanField(default=False) 
+    approved_by = models.ForeignKey(User, models.SET_NULL, null=True, blank=True, related_name="work_entry_approval")
+    approval_date = models.DateField(auto_now=False, null=True, blank=True)
+    is_edited_by_lead_engineer = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-work_date', '-created_at']

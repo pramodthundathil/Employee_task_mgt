@@ -1,0 +1,619 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Great waters EMS - Team Work Entries{% endblock %}
+
+{% block breadcrumb %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'employee_dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item active">Team Work Entries</li>
+        </ol>
+    </nav>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Alert container for messages -->
+    <div id="alert-container">
+        {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="h4 mb-1">Team Work Entries Management</h2>
+                    <p class="text-muted mb-0">Review, edit, and approve work entries from your team</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success" onclick="approveMultiple()">
+                        <i class="fas fa-check-double"></i> Approve Selected
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title text-white mb-1">Pending Approval</h6>
+                            <h3 class="mb-0">{{ pending_count|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-clock fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title text-white mb-1">Approved</h6>
+                            <h3 class="mb-0">{{ approved_count|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title text-white mb-1">Total Hours</h6>
+                            <h3 class="mb-0">{{ total_hours|default:0|floatformat:1 }}</h3>
+                        </div>
+                        <i class="fas fa-business-time fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title text-white mb-1">Team Members</h6>
+                            <h3 class="mb-0">{{ team_count|default:0 }}</h3>
+                        </div>
+                        <i class="fas fa-users fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-filter"></i> Filters
+            </h5>
+        </div>
+        <div class="card-body">
+            <form method="GET" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label for="employee" class="form-label">Employee</label>
+                        <select class="form-select" id="employee" name="employee">
+                            <option value="">All Team Members</option>
+                            {% for employee in team_members %}
+                            <option value="{{ employee.id }}" {% if request.GET.employee == employee.id|stringformat:"s" %}selected{% endif %}>
+                                {{ employee.first_name }} {{ employee.last_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="project" class="form-label">Project</label>
+                        <select class="form-select" id="project" name="project">
+                            <option value="">All Projects</option>
+                            {% for project in projects %}
+                            <option value="{{ project.id }}" {% if request.GET.project == project.id|stringformat:"s" %}selected{% endif %}>
+                                {{ project.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="status" class="form-label">Status</label>
+                        <select class="form-select" id="status" name="status">
+                            <option value="">All Status</option>
+                            <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>Pending</option>
+                            <option value="approved" {% if request.GET.status == 'approved' %}selected{% endif %}>Approved</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="date" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="date" name="date" value="{{ request.GET.date }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-search"></i> Filter
+                            </button>
+                            <a href="{% url 'team_work_entries' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-times"></i> Clear
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Work Entries Table -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-clock"></i> Work Entries
+                    <span class="badge bg-secondary ms-2">{{ work_entries.paginator.count }} total</span>
+                </h5>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="selectAll" onclick="toggleSelectAll(this)">
+                    <label class="form-check-label" for="selectAll">
+                        Select All
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th width="50">
+                                <input type="checkbox" class="form-check-input" onclick="toggleSelectAll(this)">
+                            </th>
+                            <th>Employee</th>
+                            <th>Project</th>
+                            <th>Work Date</th>
+                            <th>Time</th>
+                            <th>Hours</th>
+                            <th>Description</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in work_entries %}
+                        <tr class="entry-row" data-entry-id="{{ entry.id }}">
+                            <td>
+                                {% if not entry.approval_status %}
+                                <input type="checkbox" class="form-check-input entry-checkbox" value="{{ entry.id }}">
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-sm bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2">
+                                        {{ entry.employee.first_name|first }}{{ entry.employee.last_name|first }}
+                                    </div>
+                                    <div>
+                                        <strong>{{ entry.employee.first_name }} {{ entry.employee.last_name }}</strong>
+                                        <br>
+                                        <small class="text-muted">{{ entry.employee.designation|default:"Employee" }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div>
+                                    <strong>{{ entry.project.name }}</strong>
+                                    <br>
+                                    <small class="text-muted">{{ entry.project.project_id }}</small>
+                                </div>
+                            </td>
+                            <td>
+                                <strong>{{ entry.work_date|date:"M d, Y" }}</strong>
+                                <br>
+                                <small class="text-muted">{{ entry.work_date|date:"l" }}</small>
+                            </td>
+                            <td>
+                                <div class="text-nowrap">
+                                    <i class="fas fa-clock text-success"></i> {{ entry.start_time|time:"g:i A" }}
+                                    <br>
+                                    <i class="fas fa-clock text-danger"></i> {{ entry.end_time|time:"g:i A" }}
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-info fs-6">{{ entry.working_hours }}h</span>
+                            </td>
+                            <td>
+                                <div class="description-cell" style="max-width: 250px;">
+                                    {% if entry.description|length > 60 %}
+                                        <span class="description-short">{{ entry.description|truncatechars:60 }}</span>
+                                        <span class="description-full d-none">{{ entry.description }}</span>
+                                        <button class="btn btn-link btn-sm p-0 toggle-description" type="button">
+                                            <i class="fas fa-expand-alt"></i>
+                                        </button>
+                                    {% else %}
+                                        {{ entry.description }}
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                {% if entry.approval_status %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check-circle"></i> Approved
+                                    </span>
+                                    <br>
+                                    <small class="text-muted">
+                                        {{ entry.approval_date|date:"M d, Y" }}
+                                    </small>
+                                {% else %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-clock"></i> Pending
+                                    </span>
+                                {% endif %}
+                                {% if entry.is_edited_by_lead_engineer %}
+                                    <br>
+                                    <span class="badge bg-info mt-1">
+                                        <i class="fas fa-edit"></i> Edited
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <button class="btn btn-sm btn-outline-primary" 
+                                            onclick="viewEntry({{ entry.id }})"
+                                            title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <a class="btn btn-sm btn-outline-warning" 
+                                            href="{% url 'lead_edit_work_entry' entry.id %}"
+                                            title="Edit Entry">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% if not entry.approval_status %}
+                                    <button class="btn btn-sm btn-outline-success" 
+                                            onclick="approveEntry({{ entry.id }})"
+                                            title="Approve Entry">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center py-4">
+                                <div class="text-muted">
+                                    <i class="fas fa-inbox fa-2x mb-2"></i>
+                                    <br>
+                                    No work entries found.
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Pagination -->
+        {% if work_entries.has_other_pages %}
+        <div class="card-footer">
+            <nav aria-label="Work entries pagination">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if work_entries.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if request.GET.employee %}employee={{ request.GET.employee }}&{% endif %}{% if request.GET.project %}project={{ request.GET.project }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}{% if request.GET.date %}date={{ request.GET.date }}&{% endif %}page={{ work_entries.previous_page_number }}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for num in work_entries.paginator.page_range %}
+                    {% if work_entries.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > work_entries.number|add:'-3' and num < work_entries.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if request.GET.employee %}employee={{ request.GET.employee }}&{% endif %}{% if request.GET.project %}project={{ request.GET.project }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}{% if request.GET.date %}date={{ request.GET.date }}&{% endif %}page={{ num }}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                    {% endfor %}
+                    
+                    {% if work_entries.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if request.GET.employee %}employee={{ request.GET.employee }}&{% endif %}{% if request.GET.project %}project={{ request.GET.project }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}{% if request.GET.date %}date={{ request.GET.date }}&{% endif %}page={{ work_entries.next_page_number }}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            <div class="text-center mt-2">
+                <small class="text-muted">
+                    Showing {{ work_entries.start_index }} to {{ work_entries.end_index }} of {{ work_entries.paginator.count }} entries
+                </small>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- View Entry Modal -->
+<div class="modal fade" id="viewEntryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Work Entry Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="viewEntryContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.avatar-sm {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.description-cell {
+    position: relative;
+}
+
+.toggle-description {
+    color: #0d6efd;
+    font-size: 0.75rem;
+}
+
+.toggle-description:hover {
+    text-decoration: underline;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.btn-group .btn {
+    margin-right: 2px;
+}
+
+.pagination {
+    margin-bottom: 0;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.badge {
+    font-size: 0.75rem;
+}
+
+.text-nowrap {
+    white-space: nowrap;
+}
+
+.entry-row:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.opacity-50 {
+    opacity: 0.5;
+}
+</style>
+
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function toggleSelectAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.entry-checkbox');
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+}
+
+function approveEntry(entryId) {
+    if (confirm('Are you sure you want to approve this work entry?')) {
+        const csrftoken = getCookie('csrftoken');
+        
+        fetch(`/lead-engineer/approve-work-entry/${entryId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert('Work entry approved successfully!', 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showAlert(data.message || 'Failed to approve work entry', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('An error occurred while approving the entry', 'danger');
+        });
+    }
+}
+
+function approveMultiple() {
+    const checkboxes = document.querySelectorAll('.entry-checkbox:checked');
+    const entryIds = Array.from(checkboxes).map(cb => cb.value);
+    
+    if (entryIds.length === 0) {
+        showAlert('Please select at least one entry to approve', 'warning');
+        return;
+    }
+    
+    if (confirm(`Are you sure you want to approve ${entryIds.length} work entries?`)) {
+        const csrftoken = getCookie('csrftoken');
+        
+        fetch('/lead-engineer/approve-multiple-entries/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({ entry_ids: entryIds })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert(`Successfully approved ${data.approved_count} entries!`, 'success');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showAlert(data.message || 'Failed to approve entries', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('An error occurred while approving entries', 'danger');
+        });
+    }
+}
+
+function viewEntry(entryId) {
+    const modal = new bootstrap.Modal(document.getElementById('viewEntryModal'));
+    modal.show();
+    
+    fetch(`/lead-engineer/view-work-entry/${entryId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('viewEntryContent').innerHTML = `
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Employee</label>
+                            <p>${data.entry.employee_name}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Project</label>
+                            <p>${data.entry.project_name}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Work Date</label>
+                            <p>${data.entry.work_date}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Working Hours</label>
+                            <p>${data.entry.working_hours} hours</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Start Time</label>
+                            <p>${data.entry.start_time}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">End Time</label>
+                            <p>${data.entry.end_time}</p>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Description</label>
+                            <p>${data.entry.description}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Status</label>
+                            <p>${data.entry.approval_status ? '<span class="badge bg-success">Approved</span>' : '<span class="badge bg-warning">Pending</span>'}</p>
+                        </div>
+                        ${data.entry.approval_status ? `
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Approved By</label>
+                            <p>${data.entry.approved_by}</p>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                document.getElementById('viewEntryContent').innerHTML = '<p class="text-danger">Failed to load entry details</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('viewEntryContent').innerHTML = '<p class="text-danger">An error occurred while loading entry details</p>';
+        });
+}
+
+function showAlert(message, type) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    document.getElementById('alert-container').innerHTML = alertHtml;
+    
+    setTimeout(() => {
+        const alert = document.querySelector('#alert-container .alert');
+        if (alert) {
+            alert.remove();
+        }
+    }, 5000);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle description functionality
+    document.querySelectorAll('.toggle-description').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const cell = this.closest('.description-cell');
+            const shortText = cell.querySelector('.description-short');
+            const fullText = cell.querySelector('.description-full');
+            const icon = this.querySelector('i');
+            
+            if (fullText.classList.contains('d-none')) {
+                shortText.classList.add('d-none');
+                fullText.classList.remove('d-none');
+                icon.classList.remove('fa-expand-alt');
+                icon.classList.add('fa-compress-alt');
+            } else {
+                shortText.classList.remove('d-none');
+                fullText.classList.add('d-none');
+                icon.classList.remove('fa-compress-alt');
+                icon.classList.add('fa-expand-alt');
+            }
+        });
+    });
+});
+</script>
+
+{% endblock %}

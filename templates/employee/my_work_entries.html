@@ -55,6 +55,14 @@
                             <h6 class="mb-0">Total Entries</h6>
                             <h4 class="mb-0 text-primary">{{ total_entries }}</h4>
                         </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-0">Pending Approve</h6>
+                            <h4 class="mb-0 text-warning">{{ pending_approve|default:"0" }}</h4>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <h6 class="mb-0">Approved Entries</h6>
+                            <h4 class="mb-0 text-success">{{ approved_entries|default:"0" }}</h4>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -70,8 +78,9 @@
                         </div>
                         <div class="flex-grow-1 ms-3">
                             <h6 class="mb-0">Total Hours</h6>
-                            <h4 class="mb-0 text-success">{{ total_hours }}h</h4>
+                            <h4 class="mb-0 text-success">{{ total_hours|floatformat:2 }}h</h4>
                         </div>
+                        
                     </div>
                 </div>
             </div>
@@ -158,6 +167,7 @@
                             <th>Duration</th>
                             <th>Description</th>
                             <th>Status</th>
+                            <th>Approval</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -225,6 +235,22 @@
                                         </span>
                                     {% endif %}
                                 </div>
+                            </td>
+                            <td>
+                                {% if entry.approval_status %}
+                                <span class="badge bg-success">Approved</span>
+                                <br>
+                                <span class="text-small">Approved By: {{ entry.approved_by }} (Date: {{ entry.approval_date|date:"M d" }})</span>
+                                 {% if entry.is_edited_by_lead_engineer %}
+                                    <br>
+                                    <span class="badge bg-info mt-1">
+                                        <i class="fas fa-edit"></i> Edited
+                                    </span>
+                                {% endif %}
+                                {% else %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                                {% endif %}
+                                {{ entry.get_approval_status_display }}
                             </td>
                             <td>
                                 <div class="d-flex gap-1">

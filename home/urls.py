@@ -29,6 +29,7 @@ urlpatterns = [
     
 
     # Project Management (Admin)
+    path('ajax/lead-engineers/', views.lead_engineers_for_location, name='lead_engineers_for_location'),
     path('projects/', views.project_management, name='project_management'),
     path('projects/add/', views.add_project, name='add_project'),
     path('projects/<int:project_id>/edit/', views.edit_project, name='edit_project'),
@@ -42,6 +43,33 @@ urlpatterns = [
     path('work-entries/<int:entry_id>/delete/', views.delete_work_entry, name='delete_work_entry'),
     path('view/<int:entry_id>/work-entry',views.view_work_entry_admin,name="view_work_entry_admin"),
     path("work-entry-admin/<int:project_id>/add", views.add_work_entry_admin, name='add_work_entry_admin'),
+
+
+    #work entries Team Lead\
+
+    path("team/team_work_entries/",views.team_work_entries,name="team_work_entries"),
+    
+    
+    path('lead-engineer/approve-work-entry/<int:entry_id>/', 
+         views.approve_work_entry, 
+         name='approve_work_entry'),
+    
+    path('lead-engineer/approve-multiple-entries/', 
+         views.approve_multiple_entries, 
+         name='approve_multiple_entries'),
+    
+    path('lead-engineer/view-work-entry/<int:entry_id>/', 
+         views.view_work_entry_lead, 
+         name='view_work_entry_lead'),
+    
+    path('lead-engineer/edit-work-entry/<int:entry_id>/', 
+         views.edit_work_entry_lead, 
+         name='lead_edit_work_entry'),
+    
+    path('lead-engineer/dashboard-stats/', 
+         views.lead_engineer_dashboard_stats, 
+         name='lead_engineer_dashboard_stats'),
+
     # Reports (Admin)
     path('reports/', views.reports, name='reports'),
 

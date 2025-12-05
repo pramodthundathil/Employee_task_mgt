@@ -120,6 +120,8 @@
                                 <td><span class="badge bg-light text-dark">#{{ project.project_id }}</span></td>
                                 <td>
                                     <div class="fw-medium">{{ project.name }}</div>
+                            <div class="font-small text-muted">Lead Engineer: {{ project.lead_engineer|default:"N/A" }}</div>
+
                                 </td>
                                 <td>
                                     <span class="text-muted">{{ project.description|truncatewords:10 }}</span>
@@ -220,11 +222,14 @@
                 </div>
             </div>
             <div class="card-body pt-2">
-                <h5 class="card-title project-name">{{ project }}</h5>
+                <h5 class="card-title project-name">{{ project }}
+                    
+                </h5>
+                            <div class="font-small text-muted">Lead Engineer: {{ project.lead_engineer|default:"N/A" }}</div>
+
                 <p class="card-text project-description">
                     {{ project.description|truncatewords:20 }}
                 </p>
-
                 <div class="project-meta mb-3">
                     <div class="row text-sm">
                         <div class="col-6">
@@ -830,4 +835,62 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 </script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const wlSelect = document.getElementById('id_work_location');
+  const leadSelect = document.getElementById('id_lead_engineer');
+
+  if (!wlSelect || !leadSelect) return;
+
+  function clearLeadOptions() {
+    leadSelect.innerHTML = '<option value="">Select Lead Engineer</option>';
+  }
+
+  async function loadLeadsForLocation(locationId) {
+    clearLeadOptions();
+    if (!locationId) return;
+    try {
+      const resp = await fetch("{% url 'lead_engineers_for_location' %}?location_id=" + encodeURIComponent(locationId));
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const results = data.results || [];
+      if (results.length === 0) {
+        // optional: show "No lead engineers"
+        const opt = document.createElement('option');
+        opt.value = "";
+        opt.textContent = 'No lead engineers available';
+        leadSelect.appendChild(opt);
+        return;
+      }
+      results.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.id;
+        opt.textContent = r.name;
+        leadSelect.appendChild(opt);
+      });
+      // if form had an initial selected lead (editing), keep it selected
+      const initialVal = leadSelect.getAttribute('data-initial');
+      if (initialVal) leadSelect.value = initialVal;
+    } catch (err) {
+      console.error('Failed loading lead engineers:', err);
+    }
+  }
+
+  // If editing, set data-initial to currently selected lead (so loadLeadsForLocation can restore)
+  // Example in the template you can set: <select ... data-initial="{{ form.initial.lead_engineer }}">
+  // If not set, it's ignored.
+
+  // On change of work location, fetch leads
+  wlSelect.addEventListener('change', function () {
+    loadLeadsForLocation(this.value);
+  });
+
+  // If a value is preselected on page load (editing), trigger load
+  if (wlSelect.value) {
+    loadLeadsForLocation(wlSelect.value);
+  }
+});
+</script>
+
 {% endblock %}

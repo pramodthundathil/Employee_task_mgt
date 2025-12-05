@@ -39,7 +39,7 @@ class CustomUserForm(forms.ModelForm):
     class Meta:
         model = CustomUser
         fields = [
-            'email', 'first_name', 'last_name', 'employee_id', 'designation', 
+            'email', 'first_name', 'last_name', 'employee_id', 'designation','is_lead_engineer', 
             'work_location', 'profile_picture', 'man_hour_of_employee', 
             'phone_number', 'date_of_birth', 'pin_code', 'age', 'district', 
             'state', 'address', 'role'
@@ -127,6 +127,7 @@ class CustomUserForm(forms.ModelForm):
                 'class': 'form-control',
                 'id': 'role'
             }),
+            "is_lead_engineer": forms.NullBooleanSelect(attrs={"class":"form-control"})
         }
 
     def __init__(self, *args, **kwargs):
@@ -444,7 +445,7 @@ class CustomUserFormEdit(forms.ModelForm):
     class Meta:
         model = CustomUser
         fields = [
-            'email', 'first_name', 'last_name','employee_id', 'designation', 'profile_picture',
+            'email', 'first_name', 'last_name','employee_id', 'designation','is_lead_engineer', 'profile_picture',
             'man_hour_of_employee', 'is_verified', 'phone_number', 'date_of_birth',
             'pin_code', 'age', 'district', 'state', 'address', 'is_active',
             'is_staff', 'role', 'password'
@@ -455,7 +456,7 @@ class CustomUserCreationForm(UserCreationForm):
     class Meta:
         model = CustomUser
         fields = [
-            'email', 'first_name', 'last_name','employee_id', 'designation', 'profile_picture',
+            'email', 'first_name', 'last_name','employee_id', 'designation','is_lead_engineer', 'profile_picture',
             'man_hour_of_employee', 'is_verified', 'phone_number', 'date_of_birth',
             'pin_code', 'age', 'district', 'state', 'address', 'is_active',
             'is_staff', 'role'
@@ -534,47 +535,78 @@ from .models import User, Project, Task, WorkEntry
 #             elif field_name == 'password2':
 #                 field.help_text = None
 
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
 class ProjectForm(forms.ModelForm):
     class Meta:
         model = Project
-        fields = ('name', 'project_id', 'description', 'work_location', 'start_date', 'end_date')
+        fields = (
+            'name', 'project_id', 'description', 'work_location',
+            'start_date', 'end_date', 'lead_engineer',
+            'allocated_engineer_manhours', 'allocated_draftsman_manhours',
+        )
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Project Title'}),
             'project_id': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Project Id'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Enter Project Description'}),
             'start_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
             'end_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
-            'work_location': forms.Select(attrs={
-                'class': 'form-control',
-                'id': 'work_location'
-            }),
+            'work_location': forms.Select(attrs={'class': 'form-control', 'id': 'id_work_location'}),
+            'lead_engineer': forms.Select(attrs={'class': 'form-control', 'id': 'id_lead_engineer'}),
+            'allocated_engineer_manhours': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.25'}),
+            'allocated_draftsman_manhours': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.25'}),
         }
 
     def __init__(self, *args, **kwargs):
-        # Extract the current user from kwargs
         self.current_user = kwargs.pop('current_user', None)
         super().__init__(*args, **kwargs)
-        
-        # Make work_location required
+
+        # WorkLocation setup
         self.fields['work_location'].required = True
         self.fields['work_location'].queryset = WorkLocation.objects.all()
         self.fields['work_location'].empty_label = "Select Work Location"
-        
-        # If the current user is a semi-admin
+
+        # By default, do not show any lead engineers until a work_location is known
+        self.fields['lead_engineer'].queryset = User.objects.none()
+        self.fields['lead_engineer'].required = False
+
+        # If we have an instance with work_location (editing), use that
+        if self.instance and getattr(self.instance, 'work_location', None):
+            location = self.instance.work_location
+            lead_qs = User.objects.filter(is_lead_engineer=True, is_active=True, work_location=location)
+            self.fields['lead_engineer'].queryset = lead_qs
+
+        # If form was submitted (POST) and contains work_location, use that to filter
+        elif 'data' in kwargs and kwargs['data'] and kwargs['data'].get('work_location'):
+            try:
+                location_id = kwargs['data'].get('work_location')
+                location = WorkLocation.objects.get(pk=location_id)
+                lead_qs = User.objects.filter(is_lead_engineer=True, is_active=True, work_location=location)
+                self.fields['lead_engineer'].queryset = lead_qs
+            except (WorkLocation.DoesNotExist, ValueError):
+                self.fields['lead_engineer'].queryset = User.objects.none()
+
+        # semi-admin behavior (force work_location and restrict leads to same location)
         if self.current_user and self.current_user.role == 'semi-admin':
-            # Hide the work_location field and set it to the semi-admin's location
+            # hide and set work_location to semi-admin's location
             self.fields['work_location'].widget = forms.HiddenInput()
             self.fields['work_location'].initial = self.current_user.work_location
             self.fields['work_location'].required = True
 
+            # restrict lead engineers to same work_location as semi-admin
+            lead_qs = User.objects.filter(is_lead_engineer=True, is_active=True, work_location=self.current_user.work_location)
+            self.fields['lead_engineer'].queryset = lead_qs
+
+        # defaults for manhour fields
+        self.fields['allocated_engineer_manhours'].initial = getattr(self.instance, 'allocated_engineer_manhours', 0) or 0
+        self.fields['allocated_draftsman_manhours'].initial = getattr(self.instance, 'allocated_draftsman_manhours', 0) or 0
+
     def clean_work_location(self):
-        """Ensure semi-admins can only assign their own work location."""
         work_location = self.cleaned_data.get('work_location')
-        
         if self.current_user and self.current_user.role == 'semi-admin':
-            # Force work_location to semi-admin's location
             return self.current_user.work_location
-        
         return work_location
 
     def clean(self):
@@ -584,8 +616,8 @@ class ProjectForm(forms.ModelForm):
 
         if start_date and end_date and start_date > end_date:
             raise ValidationError("End date must be after start date.")
-
         return cleaned_data
+
 
 class TaskForm(forms.ModelForm):
     class Meta:

@@ -1,0 +1,261 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Edit Work Entry - Lead Engineer{% endblock %}
+
+{% block breadcrumb %}
+<div class="container">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'employee_dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'team_work_entries' %}">Team Work Entries</a></li>
+            <li class="breadcrumb-item active">Edit Work Entry</li>
+        </ol>
+    </nav>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Page Header -->
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-edit"></i> Edit Work Entry
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Note:</strong> As a lead engineer, you are editing this work entry. 
+                        The entry will be marked as "Edited by Lead Engineer" after saving.
+                    </div>
+                    
+                    <!-- Current Entry Info -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Employee:</strong></p>
+                            <p class="text-muted">{{ work_entry.employee.first_name }} {{ work_entry.employee.last_name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="mb-1"><strong>Project:</strong></p>
+                            <p class="text-muted">{{ work_entry.project.name }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Form -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Work Entry Details</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post" id="editWorkEntryForm">
+                        {% csrf_token %}
+                        
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                        {% endif %}
+
+                        <div class="row g-3">
+                            <!-- Employee (Read-only) -->
+                            <div class="col-md-6">
+                                <label class="form-label">Employee *</label>
+                                {{ form.employee }}
+                                {% if form.employee.errors %}
+                                <div class="text-danger small">
+                                    {{ form.employee.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Project (Read-only) -->
+                            <div class="col-md-6">
+                                <label class="form-label">Project *</label>
+                                {{ form.project }}
+                                {% if form.project.errors %}
+                                <div class="text-danger small">
+                                    {{ form.project.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Work Date -->
+                            <div class="col-md-6">
+                                <label for="id_work_date" class="form-label">Work Date *</label>
+                                {{ form.work_date }}
+                                {% if form.work_date.errors %}
+                                <div class="text-danger small">
+                                    {{ form.work_date.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Working Hours -->
+                            <div class="col-md-6">
+                                <label for="id_working_hours" class="form-label">Working Hours *</label>
+                                {{ form.working_hours }}
+                                <small class="form-text text-muted">Enter hours (e.g., 8.5)</small>
+                                {% if form.working_hours.errors %}
+                                <div class="text-danger small">
+                                    {{ form.working_hours.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Start Time -->
+                            <div class="col-md-6">
+                                <label for="id_start_time" class="form-label">Start Time *</label>
+                                {{ form.start_time }}
+                                {% if form.start_time.errors %}
+                                <div class="text-danger small">
+                                    {{ form.start_time.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- End Time -->
+                            <div class="col-md-6">
+                                <label for="id_end_time" class="form-label">End Time *</label>
+                                {{ form.end_time }}
+                                {% if form.end_time.errors %}
+                                <div class="text-danger small">
+                                    {{ form.end_time.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Description -->
+                            <div class="col-12">
+                                <label for="id_description" class="form-label">Description *</label>
+                                {{ form.description }}
+                                <small class="form-text text-muted">Describe the work performed</small>
+                                {% if form.description.errors %}
+                                <div class="text-danger small">
+                                    {{ form.description.errors }}
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between mt-3">
+                                    <a href="{% url 'team_work_entries' %}" class="btn btn-secondary">
+                                        <i class="fas fa-arrow-left"></i> Cancel
+                                    </a>
+                                    <div>
+                                        <button type="submit" name="save_only" class="btn btn-warning me-2">
+                                            <i class="fas fa-save"></i> Save Changes
+                                        </button>
+                                        <button type="submit" name="save_and_approve" class="btn btn-success">
+                                            <i class="fas fa-check"></i> Save & Approve
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Change History (if needed) -->
+            {% if work_entry.updated_at %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">Change History</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <i class="fas fa-clock text-muted"></i>
+                            <strong>Created:</strong> {{ work_entry.created_at|date:"M d, Y g:i A" }}
+                        </li>
+                        <li>
+                            <i class="fas fa-edit text-muted"></i>
+                            <strong>Last Updated:</strong> {{ work_entry.updated_at|date:"M d, Y g:i A" }}
+                            {% if work_entry.updated_by %}
+                            by {{ work_entry.updated_by.first_name }} {{ work_entry.updated_by.last_name }}
+                            {% endif %}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.form-control, .form-select {
+    border: 1px solid #ced4da;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.text-danger.small {
+    display: block;
+    margin-top: 0.25rem;
+}
+
+.alert-info {
+    background-color: #d1ecf1;
+    border-color: #bee5eb;
+    color: #0c5460;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('editWorkEntryForm');
+    const startTimeInput = document.getElementById('id_start_time');
+    const endTimeInput = document.getElementById('id_end_time');
+    const workingHoursInput = document.getElementById('id_working_hours');
+    
+    // Calculate working hours when times change
+    function calculateWorkingHours() {
+        if (startTimeInput.value && endTimeInput.value) {
+            const start = new Date('1970-01-01T' + startTimeInput.value);
+            const end = new Date('1970-01-01T' + endTimeInput.value);
+            
+            if (end > start) {
+                const diffMs = end - start;
+                const diffHours = (diffMs / (1000 * 60 * 60)).toFixed(2);
+                
+                // Only update if the field is empty or if user wants auto-calculation
+                if (!workingHoursInput.value || confirm('Calculate working hours automatically?')) {
+                    workingHoursInput.value = diffHours;
+                }
+            }
+        }
+    }
+    
+    if (startTimeInput) startTimeInput.addEventListener('change', calculateWorkingHours);
+    if (endTimeInput) endTimeInput.addEventListener('change', calculateWorkingHours);
+    
+    // Form submission handling
+    form.addEventListener('submit', function(e) {
+        const saveAndApprove = e.submitter && e.submitter.name === 'save_and_approve';
+        
+        if (saveAndApprove) {
+            if (!confirm('Are you sure you want to save and approve this work entry?')) {
+                e.preventDefault();
+            }
+        }
+    });
+});
+</script>
+
+{% endblock %}

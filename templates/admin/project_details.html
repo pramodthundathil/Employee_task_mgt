@@ -238,6 +238,7 @@
                                     <th>Time</th>
                                     <th>Hours</th>
                                     <th>Description</th>
+                                    <th>Approval Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -268,6 +269,22 @@
                                     <td>
                                         <div class="description-cell">{{ entry.description|truncatewords:15 }}</div>
                                     </td>
+                                     <td>
+                                {% if entry.approval_status %}
+                                <span class="badge bg-success">Approved</span>
+                                <br>
+                                <span class="text-small">Approved By: {{ entry.approved_by }} (Date: {{ entry.approval_date|date:"M d" }})</span>
+                                 {% if entry.is_edited_by_lead_engineer %}
+                                    <br>
+                                    <span class="badge bg-info mt-1">
+                                        <i class="fas fa-edit"></i> Edited
+                                    </span>
+                                {% endif %}
+                                {% else %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                                {% endif %}
+                                {{ entry.get_approval_status_display }}
+                            </td>
                                     <td>
                                         <div class="btn-group" role="group">
                                             <a class="btn btn-sm btn-outline-primary" href="{%url 'view_work_entry_admin' entry.id %}">

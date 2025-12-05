@@ -888,6 +888,29 @@ def project_management(request):
     
     return render(request, 'admin/project_management.html', context)
 
+
+
+
+def lead_engineers_for_location(request):
+    """
+    GET parameter: ?location_id=<id>
+    Returns JSON: [{id: <user_id>, name: "<first last>"}...]
+    """
+    location_id = request.GET.get('location_id')
+    if not location_id:
+        return JsonResponse({'results': []})
+
+    try:
+        loc = WorkLocation.objects.get(pk=location_id)
+    except WorkLocation.DoesNotExist:
+        return JsonResponse({'results': []})
+
+    leads = User.objects.filter(is_lead_engineer=True, is_active=True, work_location=loc).order_by('first_name', 'last_name')
+    results = [{'id': u.pk, 'name': f"{u.first_name or ''} {u.last_name or ''}".strip() or u.email} for u in leads]
+    return JsonResponse({'results': results})
+
+
+
 @login_required
 def add_project(request):
     if request.user.role not in ['admin', 'semi-admin']:
@@ -1278,7 +1301,8 @@ def my_work_entries(request):
         employee=request.user,
         work_date__gte=today - timedelta(days=7)
     ).count()
-    
+    pending_approve =   WorkEntry.objects.filter(employee=request.user,approval_status = False ).count()
+    approved_entries =  WorkEntry.objects.filter(employee=request.user, approval_status = True).count()
     context = {
         'work_entries': work_entries,
         'projects': projects,
@@ -1290,7 +1314,9 @@ def my_work_entries(request):
             'date': date_filter,
         },
         'today': today,
-        'form':WorkEntryForm()
+        'form':WorkEntryForm(),
+        "pending_approve":pending_approve,
+        "approved_entries":approved_entries
     }
     
     return render(request, 'employee/my_work_entries.html', context)
@@ -1322,6 +1348,305 @@ def view_work_entry_admin(request, entry_id):
         return redirect('work_entry_management')
     
     return render(request, 'admin/view_work_entry.html', {'entry': entry})
+
+
+
+
+########################################
+### Lead Engineer team work entries approvals and views 
+
+from django.views.decorators.http import require_POST
+
+
+@login_required
+def team_work_entries(request):
+
+    """
+    View for lead engineers to manage team work entries
+    """
+    # Check if user is a lead engineer
+    if not request.user.is_lead_engineer:
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('employee_dashboard')
+    
+    # Get all projects where this user is the lead engineer
+    lead_projects = Project.objects.filter(lead_engineer=request.user)
+    
+    # Get all team members who have work entries in these projects
+    team_members = CustomUser.objects.filter(
+        work_entries__project__in=lead_projects
+    ).distinct()
+    
+    # Base queryset - all work entries for projects led by this user
+    work_entries = WorkEntry.objects.filter(
+        project__in=lead_projects
+    ).select_related('employee', 'project', 'approved_by')
+    
+    # Apply filters
+    employee_filter = request.GET.get('employee')
+    project_filter = request.GET.get('project')
+    status_filter = request.GET.get('status')
+    date_filter = request.GET.get('date')
+    
+    if employee_filter:
+        work_entries = work_entries.filter(employee_id=employee_filter)
+    
+    if project_filter:
+        work_entries = work_entries.filter(project_id=project_filter)
+    
+    if status_filter:
+        if status_filter == 'pending':
+            work_entries = work_entries.filter(approval_status=False)
+        elif status_filter == 'approved':
+            work_entries = work_entries.filter(approval_status=True)
+    
+    if date_filter:
+        work_entries = work_entries.filter(work_date=date_filter)
+    
+    # Calculate statistics
+    pending_count = work_entries.filter(approval_status=False).count()
+    approved_count = work_entries.filter(approval_status=True).count()
+    total_hours = work_entries.aggregate(Sum('working_hours'))['working_hours__sum'] or 0
+    team_count = team_members.count()
+    
+    # Pagination
+    paginator = Paginator(work_entries, 15)
+    page_number = request.GET.get('page')
+    work_entries_page = paginator.get_page(page_number)
+    
+    context = {
+        'work_entries': work_entries_page,
+        'team_members': team_members,
+        'projects': lead_projects,
+        'pending_count': pending_count,
+        'approved_count': approved_count,
+        'total_hours': total_hours,
+        'team_count': team_count,
+    }
+    
+    return render(request, 'employee/team/team_work_entries.html', context)
+
+
+@login_required
+@require_POST
+def approve_work_entry(request, entry_id):
+    """
+    Approve a single work entry
+    """
+    if not request.user.is_lead_engineer:
+        return JsonResponse({
+            'success': False,
+            'message': 'You do not have permission to approve entries.'
+        }, status=403)
+    
+    try:
+        work_entry = get_object_or_404(WorkEntry, id=entry_id)
+        
+        # Check if the work entry belongs to a project led by this user
+        if work_entry.project.lead_engineer != request.user:
+            return JsonResponse({
+                'success': False,
+                'message': 'You can only approve entries for your projects.'
+            }, status=403)
+        
+        # Check if already approved
+        if work_entry.approval_status:
+            return JsonResponse({
+                'success': False,
+                'message': 'This entry is already approved.'
+            })
+        
+        # Approve the entry
+        work_entry.approval_status = True
+        work_entry.approved_by = request.user
+        work_entry.approval_date = date.today()
+        work_entry.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Work entry approved successfully.'
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+def approve_multiple_entries(request):
+    """
+    Approve multiple work entries at once
+    """
+    if not request.user.is_lead_engineer:
+        return JsonResponse({
+            'success': False,
+            'message': 'You do not have permission to approve entries.'
+        }, status=403)
+    
+    try:
+        data = json.loads(request.body)
+        entry_ids = data.get('entry_ids', [])
+        
+        if not entry_ids:
+            return JsonResponse({
+                'success': False,
+                'message': 'No entries selected.'
+            })
+        
+        # Get entries that belong to projects led by this user
+        work_entries = WorkEntry.objects.filter(
+            id__in=entry_ids,
+            project__lead_engineer=request.user,
+            approval_status=False
+        )
+        
+        # Update all entries
+        approved_count = work_entries.update(
+            approval_status=True,
+            approved_by=request.user,
+            approval_date=date.today()
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully approved {approved_count} entries.',
+            'approved_count': approved_count
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)
+
+
+@login_required
+def view_work_entry_lead(request, entry_id):
+    """
+    View work entry details (AJAX endpoint)
+    """
+    if not request.user.is_lead_engineer:
+        return JsonResponse({
+            'success': False,
+            'message': 'Permission denied.'
+        }, status=403)
+    
+    try:
+        work_entry = get_object_or_404(WorkEntry, id=entry_id)
+        
+        # Check if the work entry belongs to a project led by this user
+        if work_entry.project.lead_engineer != request.user:
+            return JsonResponse({
+                'success': False,
+                'message': 'You can only view entries for your projects.'
+            }, status=403)
+        
+        entry_data = {
+            'employee_name': f"{work_entry.employee.first_name} {work_entry.employee.last_name}",
+            'project_name': work_entry.project.name,
+            'work_date': work_entry.work_date.strftime('%B %d, %Y'),
+            'start_time': work_entry.start_time.strftime('%I:%M %p'),
+            'end_time': work_entry.end_time.strftime('%I:%M %p'),
+            'working_hours': str(work_entry.working_hours),
+            'description': work_entry.description,
+            'approval_status': work_entry.approval_status,
+            'approved_by': f"{work_entry.approved_by.first_name} {work_entry.approved_by.last_name}" if work_entry.approved_by else None,
+            'approval_date': work_entry.approval_date.strftime('%B %d, %Y') if work_entry.approval_date else None,
+        }
+        
+        return JsonResponse({
+            'success': True,
+            'entry': entry_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)
+
+
+@login_required
+def edit_work_entry_lead(request, entry_id):
+    """
+    Edit work entry by lead engineer
+    """
+    if not request.user.is_lead_engineer:
+        messages.error(request, 'You do not have permission to edit entries.')
+        return redirect('employee_dashboard')
+    
+    work_entry = get_object_or_404(WorkEntry, id=entry_id)
+    
+    # Check if the work entry belongs to a project led by this user
+    if work_entry.project.lead_engineer != request.user:
+        messages.error(request, 'You can only edit entries for your projects.')
+        return redirect('team_work_entries')
+    
+    if request.method == 'POST':
+        form = WorkEntryForm(request.POST, instance=work_entry)
+        if form.is_valid():
+            entry = form.save(commit=False)
+            entry.updated_by = request.user
+            entry.is_edited_by_lead_engineer = True
+            
+            # Check if "Save & Approve" was clicked
+            if 'save_and_approve' in request.POST:
+                entry.approval_status = True
+                entry.approved_by = request.user
+                entry.approval_date = date.today()
+                entry.save()
+                messages.success(request, 'Work entry updated and approved successfully.')
+            else:
+                entry.save()
+                messages.success(request, 'Work entry updated successfully.')
+            
+            return redirect('team_work_entries')
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = WorkEntryForm(instance=work_entry)
+    
+    context = {
+        'form': form,
+        'work_entry': work_entry,
+        'is_edit': True,
+    }
+    
+    return render(request, 'employee/team/edit_work_entry.html', context)
+
+
+@login_required
+def lead_engineer_dashboard_stats(request):
+    """
+    Get dashboard statistics for lead engineer
+    """
+    if not request.user.is_lead_engineer:
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    
+    # Get projects led by this user
+    lead_projects = Project.objects.filter(lead_engineer=request.user)
+    
+    # Get work entries for these projects
+    work_entries = WorkEntry.objects.filter(project__in=lead_projects)
+    
+    # Calculate statistics
+    stats = {
+        'pending_approvals': work_entries.filter(approval_status=False).count(),
+        'approved_today': work_entries.filter(
+            approval_status=True,
+            approval_date=date.today()
+        ).count(),
+        'total_team_hours_month': work_entries.filter(
+            work_date__month=date.today().month,
+            work_date__year=date.today().year
+        ).aggregate(Sum('working_hours'))['working_hours__sum'] or 0,
+        'active_projects': lead_projects.filter(status='active').count(),
+    }
+    
+    return JsonResponse(stats)
 
 
 
@@ -2236,7 +2561,7 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
     current_row += 2
     
     # Single table headers
-    headers = ['Date', 'Employee Name', 'Designation', 'Location', 'Project', 'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description']
+    headers = ['Date', 'Employee Name', 'Designation', 'Location', 'Project', 'Start Time', 'End Time', 'Hours', 'Hourly Rate ($)', 'Cost ($)', 'Description',"Approval"]
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=current_row, column=col, value=header)
         cell.font = header_font
@@ -2249,6 +2574,10 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
     # Single table data rows
     for entry in work_entries:
         entry_cost = float(entry.working_hours) * float(entry.employee.man_hour_of_employee)
+        if entry.approval_status == True:
+            approval_status = f'Approved by {entry.approved_by} Date: {entry.approval_date}'
+        else:
+            approval_status = "Not Approved"
         ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
         ws[f'B{current_row}'] = f"{entry.employee.first_name} {entry.employee.last_name or ''}"
         ws[f'C{current_row}'] = entry.employee.designation or 'N/A'
@@ -2260,8 +2589,9 @@ def generate_employee_single_table_report(request, start_date, end_date, employe
         ws[f'I{current_row}'] = float(entry.employee.man_hour_of_employee)
         ws[f'J{current_row}'] = float(entry_cost)
         ws[f'K{current_row}'] = entry.description
+        ws[f'L{current_row}'] = approval_status
         
-        for col in range(1, 12):
+        for col in range(1, 13):
             ws.cell(row=current_row, column=col).border = border
         
         current_row += 1
@@ -2425,7 +2755,7 @@ def generate_project_single_table_report(request, start_date, end_date, project_
         ws[f'A{current_row}'].font = Font(bold=True, size=14)
         current_row += 1
         
-        project_headers = ['Project ID', 'Project Name', 'Location', 'Total Hours', 'Total Cost']
+        project_headers = ['Project ID', 'Project Name', 'Location', 'Total Hours', 'Total Cost', "Allocated Engineer Manhours", 'Allocated Draftsman Manhours']
         for col, header in enumerate(project_headers, 1):
             cell = ws.cell(row=current_row, column=col, value=header)
             cell.font = header_font
@@ -2441,7 +2771,7 @@ def generate_project_single_table_report(request, start_date, end_date, project_
             ws[f'A{current_row}'] = project.project_id
             ws[f'B{current_row}'] = project.name
             ws[f'C{current_row}'] = project.work_location.get_location_display() if project.work_location else 'N/A'
-            
+        
             hours_cell = ws[f'D{current_row}']
             hours_cell.value = project_data['total_hours']
             hours_cell.number_format = hour_format
@@ -2449,8 +2779,10 @@ def generate_project_single_table_report(request, start_date, end_date, project_
             cost_cell = ws[f'E{current_row}']
             cost_cell.value = project_data['total_cost']
             cost_cell.number_format = currency_format
+            ws[f'F{current_row}'] = project.allocated_engineer_manhours
+            ws[f'G{current_row}'] = project.allocated_draftsman_manhours
             
-            for col in range(1, 6):
+            for col in range(1, 8):
                 ws.cell(row=current_row, column=col).border = border
             
             current_row += 1
@@ -2740,7 +3072,7 @@ def generate_employee_report(request, start_date, end_date, employee_id=None, wo
         current_row += 1
         
         current_row += 1
-        headers = ['Date', 'Project ID', 'Project', 'Start Time', 'End Time', 'Hours', 'Cost ($)', 'Description']
+        headers = ['Date', 'Project ID', 'Project', 'Start Time', 'End Time', 'Hours', 'Cost ($)', 'Description', 'Approval' ]
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=current_row, column=col, value=header)
             cell.font = header_font
@@ -2753,7 +3085,10 @@ def generate_employee_report(request, start_date, end_date, employee_id=None, wo
         for entry_data in sorted(emp_data['entries'], key=lambda x: x['entry'].work_date):
             entry = entry_data['entry']
             entry_cost = entry_data['cost']
-            
+            if entry.approval_status == True:
+                approval_status = f'Approved by {entry.approved_by} Date: {entry.approval_date}'
+            else:
+                approval_status = "Not Approved"
             ws[f'A{current_row}'] = entry.work_date.strftime('%Y-%m-%d')
             ws[f'B{current_row}'] = entry.project.project_id
             ws[f'C{current_row}'] = entry.project.name
@@ -2762,8 +3097,9 @@ def generate_employee_report(request, start_date, end_date, employee_id=None, wo
             ws[f'F{current_row}'] = float(entry.working_hours)
             ws[f'G{current_row}'] = float(entry_cost)
             ws[f'H{current_row}'] = entry.description
+            ws[f'I{current_row}'] = approval_status
             
-            for col in range(1, 9):
+            for col in range(1, 10):
                 ws.cell(row=current_row, column=col).border = border
             
             current_row += 1
@@ -2940,6 +3276,8 @@ def generate_project_report(request, start_date, end_date, project_id=None, work
         
         ws[f'A{current_row}'] = f"Project: {project.name} ({project.project_id})"
         ws[f'A{current_row}'].font = subheader_font
+        ws[f'C{current_row}'] = f"Allocated Engineer ManHours: {project.allocated_engineer_manhours:.2f}"
+        ws[f'D{current_row}'] = f"Allocated Draftsman ManHours: {project.allocated_draftsman_manhours:.2f}"
         ws[f'E{current_row}'] = f"Total Hours: {proj_data['total_hours']:.2f}"
         ws[f'E{current_row}'].font = subheader_font
         ws[f'G{current_row}'] = f"Total Cost: ${proj_data['total_cost']:.2f}"
@@ -3526,4 +3864,6 @@ def get_report_summary(request):
 #     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     
 #     return response
+
+
 

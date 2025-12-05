@@ -116,7 +116,12 @@
                                     <td>{{ employee.email }}</td>
                                     <td>{{ employee.work_location|default:'-' }}</td>
                                     <td>{{ employee.phone_number|default:'-' }}</td>
-                                    <td>{{ employee.designation|default:'-' }}</td>
+                                    <td>{{ employee.designation|default:'-' }}
+                                        {% if employee.is_lead_engineer %}
+                                        <br>
+                                            <span class="badge badge-success ms-1">Lead Engineer</span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         <span class="badge {% if employee.role == 'admin' %}badge-danger{% else %}badge-primary{% endif %}">
                                             {{ employee.role|capfirst }}
