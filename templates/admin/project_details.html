@@ -248,7 +248,7 @@
                                     <td>
                                         <div class="d-flex align-items-center">
                                             <div class="employee-avatar me-2">
-                                                {{ entry.employee.first_name|first|default:entry.employee.first_name|first }}
+                                                {% if entry.employee.first_name %}{{ entry.employee.first_name|first }}{% endif %}
                                             </div>
                                             <div>
                                                 <div class="fw-medium">{{ entry.employee.get_full_name|default:entry.employee.first_name }}</div>
@@ -323,7 +323,7 @@
                         <div class="card-header">
                             <div class="d-flex align-items-center">
                                 <div class="employee-avatar me-3">
-                                    {{ group.grouper.first_name|first|default:group.grouper.first_name|first }}
+                                    {% if group.grouper.first_name %}{{ group.grouper.first_name|first }}{% endif %}
                                 </div>
                                 <div>
                                     <h6 class="mb-0">{{ group.grouper.get_full_name|default:group.grouper.first_name }}</h6>

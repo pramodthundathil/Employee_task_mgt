@@ -151,7 +151,7 @@
                             <td>
                                 <div class="d-flex align-items-center">
                                     <div class="avatar-sm bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2">
-                                        {{stat.employee__first_name|first}}{{stat.employee__last_name|first}}
+                                        {% if stat.employee__first_name %}{{stat.employee__first_name|first}}{% endif %}{% if stat.employee__last_name %}{{stat.employee__last_name|first}}{% endif %}
                                     </div>
                                     <div>
                                         <strong>{{stat.employee_name}}</strong>
@@ -222,7 +222,7 @@
                             <td>
                                 <div class="d-flex align-items-center">
                                     <div class="avatar-xs bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center me-2">
-                                        {{entry.employee.first_name|first}}
+                                        {% if entry.employee.first_name %}{{entry.employee.first_name|first}}{% endif %}
                                     </div>
                                     {{entry.employee.first_name}} {{entry.employee.last_name}}
                                 </div>

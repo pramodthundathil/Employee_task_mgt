@@ -25,7 +25,7 @@
         <div class="col-md-8">
             <div class="d-flex align-items-center">
                 <div class="avatar-lg bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3">
-                    {{employee.first_name|first}}{{employee.last_name|first}}
+                    {% if employee.first_name %}{{employee.first_name|first}}{% endif %}{% if employee.last_name %}{{employee.last_name|first}}{% endif %}
                 </div>
                 <div>
                     <h2 class="text-primary mb-1">

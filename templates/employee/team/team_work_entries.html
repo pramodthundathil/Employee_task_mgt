@@ -206,7 +206,7 @@
                             <td>
                                 <div class="d-flex align-items-center">
                                     <div class="avatar-sm bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2">
-                                        {{ entry.employee.first_name|first }}{{ entry.employee.last_name|first }}
+                                        {% if entry.employee.first_name %}{{ entry.employee.first_name|first }}{% endif %}{% if entry.employee.last_name %}{{ entry.employee.last_name|first }}{% endif %}
                                     </div>
                                     <div>
                                         <strong>{{ entry.employee.first_name }} {{ entry.employee.last_name }}</strong>
