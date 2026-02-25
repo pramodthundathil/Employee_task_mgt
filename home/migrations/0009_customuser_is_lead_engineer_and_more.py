@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('home', '0008_merge_20251008_1610'),
+        ('home', '0007_workentry_valid_working_hours_range'),
     ]
 
     operations = [

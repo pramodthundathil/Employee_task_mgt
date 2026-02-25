@@ -68,7 +68,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
                             ),
                             default='user'
                             )
-    work_location = models.ForeignKey(WorkLocation, on_delete=models.CASCADE)
+    work_location = models.ForeignKey(WorkLocation, on_delete=models.CASCADE, null=True, blank=True)
     
     date_joined = models.DateTimeField(auto_now_add=True, verbose_name='date joined')
     objects = CustomUserManager()
