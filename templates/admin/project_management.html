@@ -72,6 +72,7 @@
                     {% endif %}
                     <div class="col-md-{% if is_semi_admin %}4{% else %}2{% endif %}">
                         <select class="form-select" id="sortBy">
+                            <option value="project_id">Sort by ID</option>
                             <option value="created_at">Sort by Date</option>
                             <option value="name">Sort by Name</option>
                             <option value="status">Sort by Status</option>
@@ -116,8 +117,9 @@
                             <tr class="project-row" data-status="{{ project.status|lower }}"
                                 data-name="{{ project.name|lower }}" data-created="{{ project.created_at|date:'Y-m-d' }}"
                                 data-description="{{ project.description|lower }}"
-                                data-location="{{ project.work_location.location|lower|default:'' }}">
-                                <td><span class="badge bg-light text-dark">#{{ project.project_id }}</span></td>
+                                data-location="{{ project.work_location.location|lower|default:'' }}"
+                                data-id="{{ project.project_id|default:project.id }}">
+                                <td data-sort="{{ project.project_id }}"><span class="badge bg-light text-dark">#{{ project.project_id }}</span></td>
                                 <td>
                                     <div class="fw-medium">{{ project.name }}</div>
                             <div class="font-small text-muted">Lead Engineer: {{ project.lead_engineer|default:"N/A" }}</div>
@@ -184,7 +186,8 @@
     <div class="col-xl-4 col-lg-6 col-md-6 mb-4 project-card" data-status="{{ project.status|lower }}"
         data-name="{{ project.name|lower }}" data-created="{{ project.created_at|date:'Y-m-d' }}"
         data-description="{{ project.description|lower }}"
-        data-location="{{ project.work_location.location|lower|default:'' }}">
+        data-location="{{ project.work_location.location|lower|default:'' }}"
+        data-id="{{ project.project_id|default:project.id }}">
         <div class="card project-item h-100 border-0 shadow-sm">
             <div class="card-header bg-transparent border-0 pb-0">
                 <div class="d-flex justify-content-between align-items-start">
@@ -694,7 +697,11 @@ document.addEventListener('DOMContentLoaded', function () {
             const cards = Array.from(projectCards).filter(card => card.style.display !== 'none');
 
             cards.sort((a, b) => {
-                if (sortValue === 'name') {
+                if (sortValue === 'project_id') {
+                    const idA = a.dataset.id ? parseInt(a.dataset.id) : 0;
+                    const idB = b.dataset.id ? parseInt(b.dataset.id) : 0;
+                    return idA - idB;
+                } else if (sortValue === 'name') {
                     return a.dataset.name.localeCompare(b.dataset.name);
                 } else if (sortValue === 'status') {
                     return a.dataset.status.localeCompare(b.dataset.status);
@@ -717,7 +724,11 @@ document.addEventListener('DOMContentLoaded', function () {
             const rows = Array.from(projectRows).filter(row => row.style.display !== 'none');
 
             rows.sort((a, b) => {
-                if (sortValue === 'name') {
+                if (sortValue === 'project_id') {
+                    const idA = a.dataset.id ? parseInt(a.dataset.id) : 0;
+                    const idB = b.dataset.id ? parseInt(b.dataset.id) : 0;
+                    return idA - idB;
+                } else if (sortValue === 'name') {
                     return a.dataset.name.localeCompare(b.dataset.name);
                 } else if (sortValue === 'status') {
                     return a.dataset.status.localeCompare(b.dataset.status);
@@ -808,7 +819,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (locationFilter) {
             locationFilter.value = '';
         }
-        sortBy.value = 'created_at';
+        sortBy.value = 'project_id';
         filterProjects();
     };
 });
@@ -829,7 +840,9 @@ document.addEventListener('DOMContentLoaded', function () {
     $(document).ready(function() {
         if ($.fn.DataTable) {
             console.log("DataTable is loaded.");
-            $('#projectsTable').DataTable();
+            $('#projectsTable').DataTable({
+                "order": [[0, "asc"]]
+            });
         } else {
             console.error("DataTable is not loaded.");
         }

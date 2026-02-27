@@ -171,32 +171,36 @@ class CustomUserForm(forms.ModelForm):
         
         return work_location
 
-    def clean_password2(self):
-        """Validate that the two password entries match."""
-        password1 = self.cleaned_data.get("password1")
-        password2 = self.cleaned_data.get("password2")
+    def clean(self):
+        cleaned_data = super().clean()
         
-        if password1 and password2 and password1 != password2:
-            raise ValidationError("Passwords don't match")
+        # We need raw data for passwords because CharField(required=False) might return empty string
+        # which evaluates to False
+        password1 = self.data.get("password1")
+        password2 = self.data.get("password2")
         
-        return password2
-
-    def clean_password1(self):
-        """Validate password strength."""
-        password1 = self.cleaned_data.get("password1")
-        
-        if password1:
-            if len(password1) < 8:
-                raise ValidationError("Password must be at least 8 characters long")
-        
-        return password1
+        # Check if creating a new user where password is required
+        if not self.instance.pk:
+            if not password1:
+                self.add_error('password1', "Password is required for new employees.")
+                
+        # Validate that if any password field has content, they match
+        if password1 or password2:
+            if password1 != password2:
+                self.add_error('password2', "Passwords don't match")
+            
+            # Check length of the password
+            if password1 and len(password1) < 8:
+                 self.add_error('password1', "Password must be at least 8 characters long")
+                
+        return cleaned_data
 
     def save(self, commit=True):
         """Save the user with properly hashed password."""
         user = super().save(commit=False)
         
         # Handle password if provided
-        password = self.cleaned_data.get("password1")
+        password = self.data.get("password1")
         if password:
             user.set_password(password)
         
@@ -204,6 +208,7 @@ class CustomUserForm(forms.ModelForm):
             user.save()
         
         return user
+
 
 # from django import forms
 # from django.core.exceptions import ValidationError
@@ -740,9 +745,9 @@ class WorkEntryForm(forms.ModelForm):
             self.fields['project'].queryset = Project.objects.filter(
                 status='active',
                 work_location=self.user.work_location
-            )
+            ).order_by('project_id')
         else:
-            self.fields['project'].queryset = Project.objects.filter(status='active')
+            self.fields['project'].queryset = Project.objects.filter(status='active').order_by('project_id')
         
         # Set work_date choices to today and yesterday
         today = date.today()

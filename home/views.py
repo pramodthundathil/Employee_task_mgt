@@ -229,7 +229,10 @@ def employee_dashboard(request):
    
     
     # Employee's active projects
-    active_projects = Project.objects.filter(status='active')[:5]
+    active_projects = Project.objects.filter(
+        status='active', 
+        work_location=request.user.work_location
+    )[:5]
     
     # Employee's recent work entries
     recent_entries = WorkEntry.objects.filter(employee=request.user).order_by('-work_date')[:5]
@@ -865,8 +868,8 @@ def project_management(request):
     if location_filter and request.user.role == 'admin':
         projects = projects.filter(work_location__location=location_filter)
     
-    # Order by created_at
-    projects = projects.order_by('-created_at')
+    # Order by project_id
+    projects = projects.order_by('project_id')
     
     # DON'T paginate - get all projects for client-side filtering
     # If you have many projects (1000+), consider server-side filtering instead
@@ -1198,7 +1201,7 @@ def add_work_entry(request):
     
     # Get active projects for this user's location
     location = request.user.work_location
-    projects = Project.objects.filter(status="active", work_location=location)
+    projects = Project.objects.filter(status="active", work_location=location).order_by('project_id')
     
     if request.method == 'POST':
         # Pass user to form for validation
@@ -1287,7 +1290,7 @@ def my_work_entries(request):
     work_entries = paginator.get_page(page)
     
     # Get active projects for filter dropdown
-    projects = Project.objects.filter(status='active').order_by('name')
+    projects = Project.objects.filter(status='active', work_location=request.user.work_location).order_by('project_id')
     
     # Calculate summary stats for the current filter
     total_entries = work_entries.paginator.count if work_entries else 0
@@ -1314,8 +1317,8 @@ def my_work_entries(request):
             'date': date_filter,
         },
         'today': today,
-        'form':WorkEntryForm(),
-        "pending_approve":pending_approve,
+        'form': WorkEntryForm(user=request.user),
+        "pending_approve": pending_approve,
         "approved_entries":approved_entries
     }
     
@@ -1357,36 +1360,63 @@ def view_work_entry_admin(request, entry_id):
 
 from django.views.decorators.http import require_POST
 
-
+from django.db import models
+from django.db.models import Q
 @login_required
 def team_work_entries(request):
 
     """
     View for lead engineers to manage team work entries
     """
-    # Check if user is a lead engineer
-    if not request.user.is_lead_engineer:
+    is_admin_or_semi = request.user.role in ['admin', 'semi-admin']
+
+    # Check if user is a lead engineer or admin
+    if not (request.user.is_lead_engineer or is_admin_or_semi):
         messages.error(request, 'You do not have permission to access this page.')
         return redirect('employee_dashboard')
     
-    # Get all projects where this user is the lead engineer
-    lead_projects = Project.objects.filter(lead_engineer=request.user)
-    
-    # Get all team members who have work entries in these projects
-    team_members = CustomUser.objects.filter(
-        work_entries__project__in=lead_projects
-    ).distinct()
-    
-    # Base queryset - all work entries for projects led by this user
-    work_entries = WorkEntry.objects.filter(
-        project__in=lead_projects
-    ).select_related('employee', 'project', 'approved_by')
+    if is_admin_or_semi:
+        if request.user.role == 'semi-admin':
+            lead_projects = Project.objects.filter(work_location=request.user.work_location, status='active').order_by('project_id')
+            work_entries = WorkEntry.objects.filter(
+                Q(project__work_location=request.user.work_location)
+            ).distinct().select_related('employee', 'project', 'approved_by')
+            team_members = CustomUser.objects.filter(
+                role='user', 
+                work_location=request.user.work_location,
+                is_active=True
+            ).order_by('first_name')
+        else:
+            lead_projects = Project.objects.filter(status='active').order_by('project_id')
+            work_entries = WorkEntry.objects.all().select_related('employee', 'project', 'approved_by')
+            team_members = CustomUser.objects.filter(role='user', is_active=True).order_by('first_name')
+    else:
+        # Get all projects where this user is the lead engineer
+        lead_projects = Project.objects.filter(lead_engineer=request.user)
+        
+        # Get all team members who have work entries in these projects
+        team_members = CustomUser.objects.filter(
+            work_entries__project__in=lead_projects
+        ).distinct()
+        
+        # Base queryset - all work entries for projects led by this user
+        work_entries = WorkEntry.objects.filter(
+            project__in=lead_projects
+        ).select_related('employee', 'project', 'approved_by')
     
     # Apply filters
     employee_filter = request.GET.get('employee')
     project_filter = request.GET.get('project')
     status_filter = request.GET.get('status')
-    date_filter = request.GET.get('date')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    location_filter = request.GET.get('location')
+
+    locations = None
+    if request.user.role == 'admin':
+        locations = WorkLocation.objects.all().order_by('location')
+        if location_filter:
+            work_entries = work_entries.filter(employee__work_location_id=location_filter)
     
     if employee_filter:
         work_entries = work_entries.filter(employee_id=employee_filter)
@@ -1400,8 +1430,14 @@ def team_work_entries(request):
         elif status_filter == 'approved':
             work_entries = work_entries.filter(approval_status=True)
     
-    if date_filter:
-        work_entries = work_entries.filter(work_date=date_filter)
+    if start_date:
+        work_entries = work_entries.filter(work_date__gte=start_date)
+        
+    if end_date:
+        work_entries = work_entries.filter(work_date__lte=end_date)
+        
+    # Apply ordering after filtering
+    work_entries = work_entries.order_by('-work_date', 'employee__first_name')
     
     # Calculate statistics
     pending_count = work_entries.filter(approval_status=False).count()
@@ -1422,6 +1458,15 @@ def team_work_entries(request):
         'approved_count': approved_count,
         'total_hours': total_hours,
         'team_count': team_count,
+        'locations': locations,
+        'current_filters': {
+            'employee': employee_filter,
+            'project': project_filter,
+            'status': status_filter,
+            'start_date': start_date,
+            'end_date': end_date,
+            'location': location_filter
+        }
     }
     
     return render(request, 'employee/team/team_work_entries.html', context)
@@ -1433,7 +1478,8 @@ def approve_work_entry(request, entry_id):
     """
     Approve a single work entry
     """
-    if not request.user.is_lead_engineer:
+    is_admin_or_semi = request.user.role in ['admin', 'semi-admin']
+    if not (request.user.is_lead_engineer or is_admin_or_semi):
         return JsonResponse({
             'success': False,
             'message': 'You do not have permission to approve entries.'
@@ -1442,12 +1488,25 @@ def approve_work_entry(request, entry_id):
     try:
         work_entry = get_object_or_404(WorkEntry, id=entry_id)
         
-        # Check if the work entry belongs to a project led by this user
-        if work_entry.project.lead_engineer != request.user:
-            return JsonResponse({
-                'success': False,
-                'message': 'You can only approve entries for your projects.'
-            }, status=403)
+        if not is_admin_or_semi:
+            # Check if the work entry belongs to a project led by this user
+            if work_entry.project.lead_engineer != request.user:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'You can only approve entries for your projects.'
+                }, status=403)
+
+            if not work_entry.is_actionable_by_lead:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Cannot action entries older than 7 days.'
+                }, status=403)
+        elif request.user.role == 'semi-admin':
+            if work_entry.employee.work_location != request.user.work_location:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'You can only approve entries for your location.'
+                }, status=403)
         
         # Check if already approved
         if work_entry.approval_status:
@@ -1480,7 +1539,8 @@ def approve_multiple_entries(request):
     """
     Approve multiple work entries at once
     """
-    if not request.user.is_lead_engineer:
+    is_admin_or_semi = request.user.role in ['admin', 'semi-admin']
+    if not (request.user.is_lead_engineer or is_admin_or_semi):
         return JsonResponse({
             'success': False,
             'message': 'You do not have permission to approve entries.'
@@ -1496,12 +1556,27 @@ def approve_multiple_entries(request):
                 'message': 'No entries selected.'
             })
         
-        # Get entries that belong to projects led by this user
-        work_entries = WorkEntry.objects.filter(
-            id__in=entry_ids,
-            project__lead_engineer=request.user,
-            approval_status=False
-        )
+        if not is_admin_or_semi:
+            # Get entries that belong to projects led by this user
+            seven_days_ago = date.today() - timedelta(days=7)
+            work_entries = WorkEntry.objects.filter(
+                id__in=entry_ids,
+                project__lead_engineer=request.user,
+                approval_status=False,
+                work_date__gte=seven_days_ago
+            )
+        else:
+            if request.user.role == 'semi-admin':
+                work_entries = WorkEntry.objects.filter(
+                    id__in=entry_ids,
+                    employee__work_location=request.user.work_location,
+                    approval_status=False
+                )
+            else:
+                work_entries = WorkEntry.objects.filter(
+                    id__in=entry_ids,
+                    approval_status=False
+                )
         
         # Update all entries
         approved_count = work_entries.update(
@@ -1528,7 +1603,8 @@ def view_work_entry_lead(request, entry_id):
     """
     View work entry details (AJAX endpoint)
     """
-    if not request.user.is_lead_engineer:
+    is_admin_or_semi = request.user.role in ['admin', 'semi-admin']
+    if not (request.user.is_lead_engineer or is_admin_or_semi):
         return JsonResponse({
             'success': False,
             'message': 'Permission denied.'
@@ -1537,12 +1613,19 @@ def view_work_entry_lead(request, entry_id):
     try:
         work_entry = get_object_or_404(WorkEntry, id=entry_id)
         
-        # Check if the work entry belongs to a project led by this user
-        if work_entry.project.lead_engineer != request.user:
-            return JsonResponse({
-                'success': False,
-                'message': 'You can only view entries for your projects.'
-            }, status=403)
+        if not is_admin_or_semi:
+            # Check if the work entry belongs to a project led by this user
+            if work_entry.project.lead_engineer != request.user:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'You can only view entries for your projects.'
+                }, status=403)
+        elif request.user.role == 'semi-admin':
+            if work_entry.employee.work_location != request.user.work_location:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'You can only view entries for your location.'
+                }, status=403)
         
         entry_data = {
             'employee_name': f"{work_entry.employee.first_name} {work_entry.employee.last_name}",
@@ -1574,16 +1657,26 @@ def edit_work_entry_lead(request, entry_id):
     """
     Edit work entry by lead engineer
     """
-    if not request.user.is_lead_engineer:
+    is_admin_or_semi = request.user.role in ['admin', 'semi-admin']
+    if not (request.user.is_lead_engineer or is_admin_or_semi):
         messages.error(request, 'You do not have permission to edit entries.')
         return redirect('employee_dashboard')
     
     work_entry = get_object_or_404(WorkEntry, id=entry_id)
     
-    # Check if the work entry belongs to a project led by this user
-    if work_entry.project.lead_engineer != request.user:
-        messages.error(request, 'You can only edit entries for your projects.')
-        return redirect('team_work_entries')
+    if not is_admin_or_semi:
+        # Check if the work entry belongs to a project led by this user
+        if work_entry.project.lead_engineer != request.user:
+            messages.error(request, 'You can only edit entries for your projects.')
+            return redirect('team_work_entries')
+            
+        if not work_entry.is_actionable_by_lead:
+            messages.error(request, 'Cannot edit entries older than 7 days.')
+            return redirect('team_work_entries')
+    elif request.user.role == 'semi-admin':
+        if work_entry.employee.work_location != request.user.work_location:
+            messages.error(request, 'You can only edit entries for your location.')
+            return redirect('team_work_entries')
     
     if request.method == 'POST':
         form = WorkEntryForm(request.POST, instance=work_entry)
@@ -2690,7 +2783,8 @@ def generate_project_single_table_report(request, start_date, end_date, project_
         location = request.user.work_location
         work_entries = WorkEntry.objects.filter(
             work_date__range=[start_date, end_date],
-            employee__work_location=location
+            employee__work_location=location,
+            project__work_location=location
         ).select_related('employee', 'project').order_by('project__project_id', 'work_date')
     else:
         work_entries = WorkEntry.objects.filter(
@@ -2699,7 +2793,7 @@ def generate_project_single_table_report(request, start_date, end_date, project_
         
         # Apply work location filter if specified
         if work_location_id:
-            work_entries = work_entries.filter(employee__work_location_id=work_location_id)
+            work_entries = work_entries.filter(employee__work_location_id=work_location_id, project__work_location_id=work_location_id)
     
     if project_id:
         work_entries = work_entries.filter(project_id=project_id)

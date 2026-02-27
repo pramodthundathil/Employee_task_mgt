@@ -141,9 +141,26 @@
                             <option value="approved" {% if request.GET.status == 'approved' %}selected{% endif %}>Approved</option>
                         </select>
                     </div>
+                    {% if request.user.role == 'admin' %}
                     <div class="col-md-2">
-                        <label for="date" class="form-label">Date</label>
-                        <input type="date" class="form-control" id="date" name="date" value="{{ request.GET.date }}">
+                        <label for="location" class="form-label">Location</label>
+                        <select class="form-select" id="location" name="location">
+                            <option value="">All Locations</option>
+                            {% for loc in locations %}
+                            <option value="{{ loc.id }}" {% if current_filters.location == loc.id|stringformat:"s" %}selected{% endif %}>
+                                {{ loc.location }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    <div class="col-md-2">
+                        <label for="start_date" class="form-label">Start Date</label>
+                        <input type="date" class="form-control" id="start_date" name="start_date" value="{{ current_filters.start_date|default:"" }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="end_date" class="form-label">End Date</label>
+                        <input type="date" class="form-control" id="end_date" name="end_date" value="{{ current_filters.end_date|default:"" }}">
                     </div>
                     <div class="col-md-2">
                         <label class="form-label">&nbsp;</label>
@@ -200,7 +217,9 @@
                         <tr class="entry-row" data-entry-id="{{ entry.id }}">
                             <td>
                                 {% if not entry.approval_status %}
-                                <input type="checkbox" class="form-check-input entry-checkbox" value="{{ entry.id }}">
+                                    {% if entry.is_actionable_by_lead or request.user.role == 'admin' or request.user.role == 'semi-admin' %}
+                                        <input type="checkbox" class="form-check-input entry-checkbox" value="{{ entry.id }}">
+                                    {% endif %}
                                 {% endif %}
                             </td>
                             <td>
@@ -278,6 +297,7 @@
                                             title="View Details">
                                         <i class="fas fa-eye"></i>
                                     </button>
+                                    {% if entry.is_actionable_by_lead or request.user.role == 'admin' or request.user.role == 'semi-admin' %}
                                     <a class="btn btn-sm btn-outline-warning" 
                                             href="{% url 'lead_edit_work_entry' entry.id %}"
                                             title="Edit Entry">
@@ -289,6 +309,7 @@
                                             title="Approve Entry">
                                         <i class="fas fa-check"></i>
                                     </button>
+                                    {% endif %}
                                     {% endif %}
                                 </div>
                             </td>
@@ -316,7 +337,7 @@
                 <ul class="pagination justify-content-center mb-0">
                     {% if work_entries.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?{% if request.GET.employee %}employee={{ request.GET.employee }}&{% endif %}{% if request.GET.project %}project={{ request.GET.project }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}{% if request.GET.date %}date={{ request.GET.date }}&{% endif %}page={{ work_entries.previous_page_number }}">
+                        <a class="page-link" href="?{% if request.GET.employee %}employee={{ request.GET.employee }}&{% endif %}{% if request.GET.project %}project={{ request.GET.project }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.location %}location={{ request.GET.location }}&{% endif %}page={{ work_entries.previous_page_number }}">
                             <i class="fas fa-chevron-left"></i>
                         </a>
                     </li>
@@ -329,14 +350,14 @@
                     </li>
                     {% elif num > work_entries.number|add:'-3' and num < work_entries.number|add:'3' %}
                     <li class="page-item">
-                        <a class="page-link" href="?{% if request.GET.employee %}employee={{ request.GET.employee }}&{% endif %}{% if request.GET.project %}project={{ request.GET.project }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}{% if request.GET.date %}date={{ request.GET.date }}&{% endif %}page={{ num }}">{{ num }}</a>
+                        <a class="page-link" href="?{% if request.GET.employee %}employee={{ request.GET.employee }}&{% endif %}{% if request.GET.project %}project={{ request.GET.project }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.location %}location={{ request.GET.location }}&{% endif %}page={{ num }}">{{ num }}</a>
                     </li>
                     {% endif %}
                     {% endfor %}
                     
                     {% if work_entries.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="?{% if request.GET.employee %}employee={{ request.GET.employee }}&{% endif %}{% if request.GET.project %}project={{ request.GET.project }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}{% if request.GET.date %}date={{ request.GET.date }}&{% endif %}page={{ work_entries.next_page_number }}">
+                        <a class="page-link" href="?{% if request.GET.employee %}employee={{ request.GET.employee }}&{% endif %}{% if request.GET.project %}project={{ request.GET.project }}&{% endif %}{% if request.GET.status %}status={{ request.GET.status }}&{% endif %}{% if request.GET.start_date %}start_date={{ request.GET.start_date }}&{% endif %}{% if request.GET.end_date %}end_date={{ request.GET.end_date }}&{% endif %}{% if request.GET.location %}location={{ request.GET.location }}&{% endif %}page={{ work_entries.next_page_number }}">
                             <i class="fas fa-chevron-right"></i>
                         </a>
                     </li>

@@ -236,6 +236,12 @@ class WorkEntry(models.Model):
         today = date.today()
         return (today - self.work_date).days <= 2
 
+    @property
+    def is_actionable_by_lead(self):
+        """Check if work entry can be edited/approved by lead (within 7 days)"""
+        today = date.today()
+        return (today - self.work_date).days <= 7
+
     def clean(self):
         """Model-level validation - called before save"""
         super().clean()
