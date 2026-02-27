@@ -1502,7 +1502,7 @@ def approve_work_entry(request, entry_id):
                     'message': 'Cannot action entries older than 7 days.'
                 }, status=403)
         elif request.user.role == 'semi-admin':
-            if work_entry.employee.work_location != request.user.work_location:
+            if work_entry.project.work_location != request.user.work_location:
                 return JsonResponse({
                     'success': False,
                     'message': 'You can only approve entries for your location.'
@@ -1569,7 +1569,7 @@ def approve_multiple_entries(request):
             if request.user.role == 'semi-admin':
                 work_entries = WorkEntry.objects.filter(
                     id__in=entry_ids,
-                    employee__work_location=request.user.work_location,
+                    project__work_location=request.user.work_location,
                     approval_status=False
                 )
             else:
@@ -1621,7 +1621,7 @@ def view_work_entry_lead(request, entry_id):
                     'message': 'You can only view entries for your projects.'
                 }, status=403)
         elif request.user.role == 'semi-admin':
-            if work_entry.employee.work_location != request.user.work_location:
+            if work_entry.project.work_location != request.user.work_location:
                 return JsonResponse({
                     'success': False,
                     'message': 'You can only view entries for your location.'
@@ -1674,7 +1674,7 @@ def edit_work_entry_lead(request, entry_id):
             messages.error(request, 'Cannot edit entries older than 7 days.')
             return redirect('team_work_entries')
     elif request.user.role == 'semi-admin':
-        if work_entry.employee.work_location != request.user.work_location:
+        if work_entry.project.work_location != request.user.work_location:
             messages.error(request, 'You can only edit entries for your location.')
             return redirect('team_work_entries')
     

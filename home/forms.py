@@ -763,6 +763,8 @@ class WorkEntryForm(forms.ModelForm):
             widget=forms.Select(attrs={'class': 'form-control'}),
             label='Work Date'
         )
+        
+        self.fields['project'].label_from_instance = lambda obj: f"{obj.project_id} - {obj.name}"
 
     def clean_work_date(self):
         """Validate and convert work_date"""
@@ -954,7 +956,7 @@ class WorkEntryFormAdmin(forms.ModelForm):
                 self.fields['project'].queryset = Project.objects.filter(
                     status='active',
                     work_location=self.current_user.work_location
-                ).order_by('name')
+                ).order_by('project_id')
             else:
                 # Admin sees all active employees and projects
                 self.fields['employee'].queryset = CustomUser.objects.filter(
@@ -964,7 +966,7 @@ class WorkEntryFormAdmin(forms.ModelForm):
                 
                 self.fields['project'].queryset = Project.objects.filter(
                     status='active'
-                ).order_by('name')
+                ).order_by('project_id')
         else:
             # Default: show all active employees and projects
             self.fields['employee'].queryset = CustomUser.objects.filter(
@@ -974,11 +976,14 @@ class WorkEntryFormAdmin(forms.ModelForm):
             
             self.fields['project'].queryset = Project.objects.filter(
                 status='active'
-            ).order_by('name')
+            ).order_by('project_id')
         
         # Set empty labels
         self.fields['employee'].empty_label = "Select Employee"
         self.fields['project'].empty_label = "Select Project"
+        
+        # Display project_id in the dropdown
+        self.fields['project'].label_from_instance = lambda obj: f"{obj.project_id} - {obj.name}"
     
     def clean_employee(self):
         """Validate employee selection for semi-admin"""

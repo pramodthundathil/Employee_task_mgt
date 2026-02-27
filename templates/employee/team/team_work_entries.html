@@ -486,8 +486,19 @@ function approveEntry(entryId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert('Work entry approved successfully!', 'success');
-                setTimeout(() => location.reload(), 1000);
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Success!',
+                        text: 'Work entry approved successfully!',
+                        icon: 'success',
+                        confirmButtonText: 'OK'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    alert('Work entry approved successfully!');
+                    location.reload();
+                }
             } else {
                 showAlert(data.message || 'Failed to approve work entry', 'danger');
             }
@@ -522,8 +533,19 @@ function approveMultiple() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                showAlert(`Successfully approved ${data.approved_count} entries!`, 'success');
-                setTimeout(() => location.reload(), 1000);
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'Success!',
+                        text: `Successfully approved ${data.approved_count} entries!`,
+                        icon: 'success',
+                        confirmButtonText: 'OK'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    alert(`Successfully approved ${data.approved_count} entries!`);
+                    location.reload();
+                }
             } else {
                 showAlert(data.message || 'Failed to approve entries', 'danger');
             }
